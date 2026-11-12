@@ -1,0 +1,24 @@
+[package]
+name = "ausgl-nt"
+version = "1.0.0"
+edition = "2021"
+description = "Geodätische Netzausgleichung (Lage, Höhe, 2D+H, 3D, Vorwärtsschnitte) – Nachfolger von WAUSGL"
+
+[[bin]]
+name = "ausgl-nt"
+path = "src/main.rs"
+
+[dependencies]
+eframe = "0.37"
+egui = "0.37"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rfd = "0.17"
+image = { version = "0.25", default-features = false, features = ["png"] }
+miniz_oxide = "0.9"
+
+[profile.release]
+opt-level = 3
+
+[profile.dev]
+opt-level = 2
