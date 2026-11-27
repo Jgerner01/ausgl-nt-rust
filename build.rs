@@ -5,6 +5,7 @@
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=BUILDNUMMER");
+    println!("cargo:rerun-if-changed=assets/ausgl-nt.ico");
     let build: u32 = include_str!("BUILDNUMMER")
         .trim()
         .parse()
@@ -22,7 +23,8 @@ fn main() {
             .set("LegalCopyright", "(c) 2026 Johann Gerner")
             .set("FileVersion", &version)
             .set("ProductVersion", &version);
-        // kein Programmicon vorhanden
+        // Programmicon: halbe Gauß-Glocke über Netz (Quelle assets/ausgl-nt.svg)
+        resource.set_icon("assets/ausgl-nt.ico");
         if let Err(error) = resource.compile() {
             // ohne Ressourcen-Compiler (rc.exe) entsteht die EXE trotzdem
             println!("cargo:warning=Versionsangaben konnten nicht eingebettet werden: {error}");

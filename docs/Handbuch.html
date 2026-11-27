@@ -1,0 +1,768 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AUSGL-NT – Handbuch</title>
+<style>
+:root { --ink:#0f172a; --muted:#475569; --accent:#1d4ed8; --prof:#14532d; --line:#e2e8f0; }
+* { box-sizing: border-box; }
+body { margin: 0; font-family: "Segoe UI", system-ui, sans-serif; color: var(--ink); background: #f4f6fa; line-height: 1.55; }
+header { position: sticky; top: 0; z-index: 2; background: #ffffff; border-bottom: 1px solid var(--line);
+         display: flex; gap: 16px; align-items: center; justify-content: space-between; padding: 10px 24px; }
+header .titel { font-weight: 600; }
+header label { display: flex; gap: 8px; align-items: center; cursor: pointer; color: var(--prof); font-style: italic; }
+header input { width: 18px; height: 18px; accent-color: #15803d; }
+main { max-width: 920px; margin: 0 auto; padding: 24px 32px 64px; background: #ffffff; }
+h1 { font-size: 30px; margin: 8px 0 12px; }
+h2 { font-size: 22px; margin: 36px 0 10px; padding-top: 8px; border-top: 1px solid var(--line); color: #1e3a8a; }
+h3 { font-size: 17px; margin: 24px 0 8px; }
+a { color: var(--accent); }
+code, pre { font-family: Consolas, "Cascadia Mono", monospace; font-size: 13px; }
+pre { background: #f1f5f9; border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; overflow-x: auto; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; font-size: 14px; }
+th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; vertical-align: top; }
+th { background: #eef2ff; }
+blockquote { margin: 16px 0; padding: 10px 16px; background: #fef3c7; border-left: 4px solid #d97706; border-radius: 6px; }
+.prof { margin: 16px 0; padding: 12px 16px; background: #f0fdf4; border-left: 4px solid #15803d; border-radius: 6px;
+        color: var(--prof); font-style: italic; }
+.prof p { margin: 6px 0; }
+.ohne-prof .prof { display: none; }
+math[display="block"] { margin: 10px 0; padding: 4px 0; overflow-x: auto; overflow-y: hidden; }
+math { font-size: 1.08em; }
+@media print { header { display: none; } body { background: #fff; } main { max-width: none; padding: 0; } }
+</style>
+</head>
+<body>
+<header><span class="titel">AUSGL-NT – Handbuch</span><label><input type="checkbox" id="prof" checked> Professor-Modus anzeigen</label></header>
+<main>
+<h1>AUSGL-NT – Handbuch</h1>
+<p><strong>Geodätische Netzausgleichung nach vermittelnden Beobachtungen</strong>
+Autor: Johann Gerner</p>
+<blockquote>
+<p><strong>Wichtig:</strong> AUSGL-NT ist für die Ausbildung gedacht. Die verwendeten Algorithmen sind nicht vollständig
+getestet. Die Nutzung geschieht auf eigene Gefahr. Professionelle Projekte dürfen mit AUSGL-NT nur
+<strong>nachgerechnet</strong> werden – maßgebend ist die Berechnung mit einer geprüften Software.</p>
+</blockquote>
+<p>Dieses Handbuch erklärt Schritt für Schritt, was das Programm rechnet und warum. Es ist für Studierende
+geschrieben: Jede Formel wird in Worten erklärt und mit Zahlen aus einem echten Beispiel belegt.</p>
+<p>Die grün-kursiv gesetzten Abschnitte <strong>Professor-Modus</strong> richten sich an Fortgeschrittene. Sie verwenden die
+Fachbegriffe besonders genau und weisen auf Fallstricke der Verfahren hin. In der HTML-Fassung lassen sie sich
+oben auf der Seite ein- und ausblenden.</p>
+<p>Das durchgehende Zahlenbeispiel ist das <strong>hybride Brückennetz</strong> aus dem Seminar „Qualität von geodätischen
+Netzen“ (Datei <code>Bsp3 - Brückennetz mit 6 SP.N</code>, 22 Punkte, 66 Richtungen, 66 Strecken, 66 Höhenunterschiede),
+gerechnet als freies Netz.</p>
+<hr />
+<h2>Inhalt</h2>
+<ol>
+<li>Grundbegriffe</li>
+<li>Ablauf einer Netzausgleichung</li>
+<li>Daten und Dateiformate</li>
+<li>Das stochastische Modell: Genauigkeiten und Gewichte</li>
+<li>Das funktionale Modell: Beobachtungsgleichungen</li>
+<li>Näherungskoordinaten</li>
+<li>Die Ausgleichung nach vermittelnden Beobachtungen</li>
+<li>Varianten und geodätisches Datum</li>
+<li>Beurteilung des Ergebnisses</li>
+<li>Robuste Schätzung</li>
+<li>Grenzwertprüfung vor der Ausgleichung</li>
+<li>Werkzeuge: Satzmittel und Helmert-Transformation</li>
+<li>Bedienung: Messdaten-Editor und Ausgaben</li>
+<li>Quellen</li>
+</ol>
+<hr />
+<h2>1. Grundbegriffe</h2>
+<ul>
+<li><strong>Beobachtung</strong> – ein gemessener Wert, z. B. eine Richtung, eine Strecke oder ein Höhenunterschied.
+  Bezeichnung <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>L</mi><mi>i</mi></msub></mrow></math>, Anzahl <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>n</mi></mrow></math>.</li>
+<li><strong>Unbekannte</strong> – die gesuchten Größen: Koordinaten der Neupunkte, Orientierungen der Standpunkte, evtl. ein
+  Maßstab. Bezeichnung <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>X</mi><mi>j</mi></msub></mrow></math>, Anzahl <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>u</mi></mrow></math>.</li>
+<li><strong>Redundanz</strong> (Freiheitsgrad) – so viele Beobachtungen hat man „zu viel“: <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>f</mi><mo>&#x0003D;</mo><mi>n</mi><mo>&#x02212;</mo><mi>u</mi><mo>&#x0002B;</mo><mi>d</mi></mrow></math>
+  (<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>d</mi></mrow></math> = Datumsdefekt, siehe Abschnitt 8). Nur mit <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>f</mi><mo>&#x0003E;</mo><mn>0</mn></mrow></math> kann man ausgleichen und Fehler erkennen.</li>
+<li><strong>Festpunkt (Altpunkt)</strong> – Koordinaten sind gegeben und werden nicht verändert.
+  <strong>Neupunkt</strong> – Koordinaten werden bestimmt.</li>
+<li><strong>Winkelmaß gon</strong> – der Vollkreis hat 400 gon, ein rechter Winkel 100 gon.
+  1 mgon = 0,001 gon. Umrechnung: <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>&#x003C1;</mi><mo>&#x0003D;</mo><mfrac><mrow><mn>200</mn></mrow><mrow><mi>&#x003C0;</mi></mrow></mfrac></mrow></math> gon je Radiant.</li>
+<li><strong>Koordinatensystem</strong> – Y = Rechtswert (Ost), X = Hochwert (Nord). Der <strong>Richtungswinkel</strong> <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>t</mi></mrow></math> wird von
+  Nord im Uhrzeigersinn gezählt.</li>
+</ul>
+<div class="prof">
+<p>Die Ausgleichung nach vermittelnden Beobachtungen ist das Gauß-Markov-Modell
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>E</mi><mo stretchy="false">&#x00028;</mo><mi>&#x1D40B;</mi><mo stretchy="false">&#x00029;</mo><mo>&#x0003D;</mo><mi>f</mi><mo stretchy="false">&#x00028;</mo><mi>&#x1D417;</mi><mo stretchy="false">&#x00029;</mo></mrow></math>, <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>D</mi><mo stretchy="false">&#x00028;</mo><mi>&#x1D40B;</mi><mo stretchy="false">&#x00029;</mo><mo>&#x0003D;</mo><msubsup><mi>&#x003C3;</mi><mn>0</mn><mn>2</mn></msubsup><msub><mi>&#x1D410;</mi><mrow><mi>L</mi><mi>L</mi></mrow></msub></mrow></math>. AUSGL-NT setzt <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>&#x1D410;</mi><mrow><mi>L</mi><mi>L</mi></mrow></msub></mrow></math>
+stets diagonal an, also unkorrelierte Beobachtungen. Das ist für Satzmittel aus mehreren Sätzen nur
+näherungsweise richtig: Richtungen eines Satzes sind über die gemeinsame Orientierung korreliert, und die
+Satzausgleichung erzeugt weitere Korrelationen. Wer Satzmittel einführt, unterschätzt daher tendenziell die
+Varianzen der Unbekannten.</p>
+</div>
+<hr />
+<h2>2. Ablauf einer Netzausgleichung</h2>
+<ol>
+<li><strong>Daten einlesen</strong> – Festpunkte und Messungen (Abschnitt 3).</li>
+<li><strong>Grenzwertprüfung</strong> – grobe Fehler vorab aussortieren (Abschnitt 11).</li>
+<li><strong>Näherungskoordinaten</strong> für alle Neupunkte bestimmen (Abschnitt 6).</li>
+<li><strong>Ausgleichung</strong> iterativ rechnen, bis sich die Koordinaten nicht mehr ändern (Abschnitt 7).</li>
+<li><strong>Beurteilen</strong> – Standardabweichung <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>s</mi><mn>0</mn></msub></mrow></math>, Globaltest, Ausreißertest, Fehlerellipsen (Abschnitt 9).</li>
+<li>Bei Bedarf <strong>Ausreißer streichen</strong> oder <strong>robust schätzen</strong> (Abschnitt 10) und erneut rechnen.</li>
+<li><strong>Ausgeben</strong> – Protokoll (RTF), Netzbild (PDF/DXF), Neupunkte (KON).</li>
+</ol>
+<p>Bei der Berechnungsart <em>2D-Lage + Höhenausgleichung</em> rechnet AUSGL-NT zwei getrennte Ausgleichungen
+nacheinander: zuerst die Lage, dann mit den ausgeglichenen Lagekoordinaten die Höhen.</p>
+<div class="prof">
+<p>Die getrennte Lage- und Höhenausgleichung ist ein Zweischrittverfahren: Die
+Kovarianzen zwischen Lage und Höhe werden vernachlässigt, und die Strecken für die Gewichte der
+Höhenunterschiede stammen aus der Lageausgleichung. Bei steilen Visuren (große Höhenunterschiede,
+kurze Strecken) ist die <em>volle 3D-Ausgleichung</em> mit Schrägstrecken und Zenitwinkeln das strengere Modell.</p>
+</div>
+<hr />
+<h2>3. Daten und Dateiformate</h2>
+<p>Alle Dateien sind Textdateien. Felder werden durch Leerzeichen getrennt. Winkel stehen in gon, Strecken und
+Koordinaten in Metern.</p>
+<h3>3.1 Netzdatei <code>*.NET</code> (empfohlen)</h3>
+<p>Punkte und Messungen stehen in einer Datei. Jede Zeile beginnt mit einem Kennbuchstaben:</p>
+<table>
+<thead>
+<tr>
+<th>Kennung</th>
+<th>Bedeutung</th>
+<th>Felder</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>P</code></td>
+<td>Punkt</td>
+<td>Punkt, Rechtswert, Hochwert, Höhe, Art, Code</td>
+</tr>
+<tr>
+<td><code>S</code></td>
+<td>Standpunkt</td>
+<td>Standpunkt, Instrumentenhöhe, Bemerkung</td>
+</tr>
+<tr>
+<td><code>Z</code></td>
+<td>Zielung (gehört zur letzten <code>S</code>-Zeile)</td>
+<td>Ziel, Hz, Strecke, V bzw. dH, Zielhöhe, Code, Status, σHz, σS, σV</td>
+</tr>
+<tr>
+<td><code>N</code></td>
+<td>Höhenunterschied / Nivellement</td>
+<td>Von, Nach, dH, Strecke, Status, σdH</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Punktart:</strong> <code>F</code> = Lage und Höhe fest, <code>L</code> = nur Lage fest, <code>H</code> = nur Höhe fest, <code>N</code> = Neupunkt.
+Bei Neupunkten sind die Koordinaten <strong>Näherungswerte</strong>; <code>-</code> bedeutet „berechnen lassen“.</p>
+<p><strong>Status:</strong> drei Zeichen für Richtung, Strecke und Höhe: <code>RSH</code> = alles verwenden, <code>-SH</code> = Richtung
+gestrichen, <code>---</code> = ganze Zielung gestrichen. So steht in der Datei selbst, was gestrichen ist; das bleibt
+auch richtig, wenn man Zeilen einfügt oder löscht.</p>
+<p>Auszug aus der Netzdatei des Brückennetzes (vom Programm aus dem CAPLAN-Datensatz erzeugt):</p>
+<pre><code class="language-text"># P Punkt             Rechtswert        Hochwert        Höhe  Art  Code
+P G1             32689789.5810    5330413.9290    522.7310  N    -
+P SP1            32689783.0570    5330550.6890    522.6650  N    -
+#
+# Z Ziel                 Hz      Strecke        V/dH  Zielh.  Code   St.      σHz      σS      σV
+S SP1              0.000  Richtungssatz (CAPLAN R)
+Z G2             284.73635           -            -   0.000  00     RSH    0.759       -       -
+Z ZP1            123.33216           -            -   0.000  00     RSH    0.949       -       -
+S SP1              0.000  Strecken (CAPLAN E)
+Z G1                     -    136.9148*           -   0.000  00     RSH        -   1.230       -
+#
+# N Von          Nach                 dH    Strecke  St.      σdH
+N SP1          G1               0.06042     136.92  H      2.306
+</code></pre>
+<h3>3.2 Klassische Dateien: KOR, DAT, Nivellement</h3>
+<p>Die Formate des Vorgängers WAUSGL werden weiter gelesen.</p>
+<pre><code class="language-text"># Punktdatei *.KOR: Nummer  Rechtswert  Hochwert  [Höhe]  [Code]   – alle Punkte sind Festpunkte
+1234   4565310.18   5312520.13   513.16   015
+
+# Messdatei *.DAT (CADdy): -Standpunkt  i  [Bemerkung]   /   Ziel  Hz  Strecke  Zenit  Zielhöhe  Code
+-125      1.520    PP
+1251     125.1234    230.333     98.4567   1.600    GP5
+1252     126.4567    190.444*    10.123    1.600    GP5
+
+# Nivellement: -Standpunkt 0   /   Ziel  dH  Strecke
+-2400   0
+2456     -13.124     2350
+</code></pre>
+<p>Eine Strecke mit <code>*</code> ist eine Horizontalstrecke; dahinter steht dann der Höhenunterschied statt eines
+Zenitwinkels.</p>
+<h3>3.3 CAPLAN-Datensätze <code>*.N</code></h3>
+<p>Datensätze aus CAPLAN (Cremer Programmentwicklung) liest AUSGL-NT direkt ein
+(<em>Datei ▸ CAPLAN-Datensatz importieren</em>). Ein Abschnitt beginnt mit einer Zeile, die nur den Kennbuchstaben in
+Spalte 1 enthält:</p>
+<table>
+<thead>
+<tr>
+<th>Abschnitt</th>
+<th>Inhalt</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Punktblock</td>
+<td>Name, W, Rechtswert, Hochwert, Höhe</td>
+</tr>
+<tr>
+<td><code>T</code></td>
+<td>Titel (nächste Zeile)</td>
+</tr>
+<tr>
+<td><code>F</code></td>
+<td>Festpunkte: Name, Komponente (1 = Y, 2 = X, 3 = H)</td>
+</tr>
+<tr>
+<td><code>E</code></td>
+<td>Horizontalstrecken: Von, Nach, Strecke, σ [m]</td>
+</tr>
+<tr>
+<td><code>R</code></td>
+<td>Richtungssätze: Standpunktzeile, darunter Ziel, Richtung, σ [gon]</td>
+</tr>
+<tr>
+<td><code>H</code></td>
+<td>Höhenunterschiede: Von, Nach, dH, σ [m]</td>
+</tr>
+<tr>
+<td><code>B</code></td>
+<td>GNSS-Basislinien – werden <strong>nicht</strong> ausgewertet (Hinweis im Reiter <em>Daten</em>)</td>
+</tr>
+</tbody>
+</table>
+<p>Die Standardabweichungen aus der Datei werden je Beobachtung übernommen. Fehlt der Abschnitt <code>F</code>, rechnet
+AUSGL-NT ein freies Netz.</p>
+<div class="prof">
+<p>Groß- und Kleinbuchstaben der Abschnittskennung (<code>F</code>/<code>f</code>, <code>E</code>/<code>e</code>, …) behandelt
+AUSGL-NT gleich. Die genaue Bedeutung der Kleinschreibung in CAPLAN ist nicht dokumentiert; wer Datensätze
+mit gezielt deaktivierten Abschnitten austauscht, sollte das Ergebnis mit CAPLAN abgleichen. Beim
+Brückennetz fehlen ohne die Basislinien die Anschlüsse an G1–G4. Das Netz ist dann nur über ein freies
+Datum gelagert, und die Koordinaten sind mit denen einer Rechnung mit GNSS-Anschluss <strong>nicht</strong> vergleichbar
+(andere Lagerung). Vergleichbar bleiben datumsinvariante Größen: <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>s</mi><mn>0</mn></msub></mrow></math>, Redundanzanteile, Verbesserungen.</p>
+</div>
+<hr />
+<h2>4. Das stochastische Modell: Genauigkeiten und Gewichte</h2>
+<p>Nicht jede Messung ist gleich genau. Genauere Messungen sollen das Ergebnis stärker bestimmen. Dazu bekommt
+jede Beobachtung eine <strong>Standardabweichung</strong> <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>&#x003C3;</mi><mi>i</mi></msub></mrow></math> und daraus ein <strong>Gewicht</strong></p>
+<p><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><msub><mi>p</mi><mi>i</mi></msub><mo>&#x0003D;</mo><mfrac><mrow><msubsup><mi>&#x003C3;</mi><mn>0</mn><mn>2</mn></msubsup></mrow><mrow><msubsup><mi>&#x003C3;</mi><mi>i</mi><mn>2</mn></msubsup></mrow></mfrac><mo>&#x0002C;</mo><mspace width="2em" /><msub><mi>&#x003C3;</mi><mn>0</mn></msub><mo>&#x0003D;</mo><mn>1</mn><mo>&#x0002E;</mo></mrow></math></p>
+<p><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>&#x003C3;</mi><mn>0</mn></msub></mrow></math> ist die <em>Standardabweichung der Gewichtseinheit a priori</em>; AUSGL-NT setzt sie auf 1. Hat eine
+Beobachtung in der Netzdatei oder im CAPLAN-Datensatz eine eigene Standardabweichung, wird diese verwendet.
+Sonst gelten die Voreinstellungen des Projekts:</p>
+<table>
+<thead>
+<tr>
+<th>Beobachtung</th>
+<th>Standardabweichung</th>
+<th>Voreinstellung</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Richtung</td>
+<td><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>&#x003C3;</mi><mi>r</mi></msub></mrow></math> konstant</td>
+<td>0,5 mgon</td>
+</tr>
+<tr>
+<td>Strecke</td>
+<td><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>&#x003C3;</mi><mi>s</mi></msub><mo>&#x0003D;</mo><mi>a</mi><mo>&#x0002B;</mo><mi>b</mi><mo>&#x000B7;</mo><msub><mi>s</mi><mrow><mrow><mi mathvariant="normal">k</mi><mi mathvariant="normal">m</mi></mrow></mrow></msub></mrow></math></td>
+<td><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>a</mi></mrow></math> = 5 mm, <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>b</mi></mrow></math> = 3 mm/km</td>
+</tr>
+<tr>
+<td>Zenitwinkel</td>
+<td><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>&#x003C3;</mi><mi>z</mi></msub></mrow></math> konstant</td>
+<td>1,0 mgon</td>
+</tr>
+<tr>
+<td>Nivellement</td>
+<td><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>&#x003C3;</mi><mrow><mi>&#x00394;</mi><mi>h</mi></mrow></msub><mo>&#x0003D;</mo><msub><mi>&#x003C3;</mi><mrow><mrow><mi mathvariant="normal">k</mi><mi mathvariant="normal">m</mi></mrow></mrow></msub><msqrt><mrow><msub><mi>s</mi><mrow><mrow><mi mathvariant="normal">k</mi><mi mathvariant="normal">m</mi></mrow></mrow></msub></mrow></msqrt></mrow></math></td>
+<td>5 mm/√km</td>
+</tr>
+<tr>
+<td>trig. Höhenunterschied</td>
+<td><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>&#x003C3;</mi><mrow><mi>&#x00394;</mi><mi>h</mi></mrow></msub><mo>&#x0003D;</mo><msub><mi>&#x003C3;</mi><mrow><mrow><mi mathvariant="normal">k</mi><mi mathvariant="normal">m</mi></mrow></mrow></msub><mo>&#x000B7;</mo><msub><mi>s</mi><mrow><mrow><mi mathvariant="normal">k</mi><mi mathvariant="normal">m</mi></mrow></mrow></msub></mrow></math></td>
+<td>10 mm/km</td>
+</tr>
+<tr>
+<td>Festpunkt als Beobachtung</td>
+<td><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>&#x003C3;</mi><mrow><mrow><mi mathvariant="normal">f</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">x</mi></mrow></mrow></msub></mrow></math></td>
+<td>Lage 10 mm, Höhe 5 mm</td>
+</tr>
+</tbody>
+</table>
+<p>Beim Nivellement wächst die Standardabweichung mit der Wurzel der Strecke (Gewicht <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0221D;</mo><mn>1</mn><mo>&#x0002F;</mo><mi>s</mi></mrow></math>), beim
+trigonometrischen Höhenunterschied linear mit der Strecke (Gewicht <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0221D;</mo><mn>1</mn><mo>&#x0002F;</mo><msup><mi>s</mi><mn>2</mn></msup></mrow></math>) – so wie im Original WAUSGL.</p>
+<p><strong>Zahlenbeispiele</strong></p>
+<ul>
+<li>Strecke <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>s</mi></mrow></math> = 250 m: <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>&#x003C3;</mi><mi>s</mi></msub><mo>&#x0003D;</mo><mn>5</mn><mo>&#x0002B;</mo><mn>3</mn><mo>&#x000B7;</mo><mn>0,25</mn><mo>&#x0003D;</mo><mn>5,75</mn></mrow></math> mm.</li>
+<li>Nivellementslinie über 400 m: <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>&#x003C3;</mi><mrow><mi>&#x00394;</mi><mi>h</mi></mrow></msub><mo>&#x0003D;</mo><mn>5</mn><mo>&#x000B7;</mo><msqrt><mrow><mn>0,4</mn></mrow></msqrt><mo>&#x0003D;</mo><mn>3,16</mn></mrow></math> mm.</li>
+<li>Trigonometrischer Höhenunterschied über 300 m: <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>&#x003C3;</mi><mrow><mi>&#x00394;</mi><mi>h</mi></mrow></msub><mo>&#x0003D;</mo><mn>10</mn><mo>&#x000B7;</mo><mn>0,3</mn><mo>&#x0003D;</mo><mn>3,0</mn></mrow></math> mm.</li>
+</ul>
+<p>Optional kann das Richtungsgewicht von der Zielweite abhängen (Einstellung <em>Richtungsgewicht entfernungs­abhängig</em>,
+Bezugsstrecke <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>s</mi><mi>g</mi></msub></mrow></math>): <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>p</mi><mi>r</mi></msub><mo>&#x0221D;</mo><msqrt><mrow><mi>s</mi><mo>&#x0002F;</mo><msub><mi>s</mi><mi>g</mi></msub></mrow></msqrt></mrow></math>, also <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msubsup><mi>&#x003C3;</mi><mi>r</mi><mi>&#x02032;</mi></msubsup><mo>&#x0003D;</mo><msub><mi>&#x003C3;</mi><mi>r</mi></msub><mspace width="0.167em" /><mo stretchy="false">&#x00028;</mo><msub><mi>s</mi><mi>g</mi></msub><mo>&#x0002F;</mo><mi>s</mi><msup><mo stretchy="false">&#x00029;</mo><mrow><mn>1</mn><mo>&#x0002F;</mo><mn>4</mn></mrow></msup></mrow></math>.</p>
+<div class="prof">
+<p>Die Gewichte sind nur <em>relativ</em> bedeutsam; über <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msubsup><mi>&#x003C3;</mi><mn>0</mn><mn>2</mn></msubsup></mrow></math> a priori wird lediglich der
+Maßstab der Kofaktormatrix festgelegt. Erst der Vergleich mit <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>s</mi><mn>0</mn></msub></mrow></math> a posteriori (Abschnitt 9) prüft, ob das
+stochastische Modell stimmt. Ein Fallstrick ist das Mischen unterschiedlicher Beobachtungsarten: Sind etwa
+die Richtungen zu optimistisch und die Strecken zu pessimistisch angesetzt, kann <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>s</mi><mn>0</mn></msub><mo>&#x02248;</mo><mn>1</mn></mrow></math> trotzdem
+herauskommen, obwohl beide Gruppen falsch gewichtet sind. Abhilfe ist eine Varianzkomponentenschätzung je
+Beobachtungsgruppe (nicht in AUSGL-NT enthalten) oder zumindest der Blick auf die normierten Verbesserungen
+getrennt nach Beobachtungsart. Die Wurzelabhängigkeit <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>&#x003C3;</mi><mi>r</mi></msub><mo>&#x0221D;</mo><msup><mi>s</mi><mrow><mo>&#x02212;</mo><mn>1</mn><mo>&#x0002F;</mo><mn>4</mn></mrow></msup></mrow></math> ist eine pragmatische Regel
+des Originals, kein strenges Modell der Zentrierfehler; streng wäre <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msubsup><mi>&#x003C3;</mi><mi>r</mi><mn>2</mn></msubsup><mo>&#x0003D;</mo><msubsup><mi>&#x003C3;</mi><mrow><mi>r</mi><mo>&#x0002C;</mo><mn>0</mn></mrow><mn>2</mn></msubsup><mo>&#x0002B;</mo><mo stretchy="false">&#x00028;</mo><mi>e</mi><mo>&#x0002F;</mo><mi>s</mi><msup><mo stretchy="false">&#x00029;</mo><mn>2</mn></msup><msup><mi>&#x003C1;</mi><mn>2</mn></msup></mrow></math>
+mit der Zentrierunsicherheit <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>e</mi></mrow></math>.</p>
+</div>
+<hr />
+<h2>5. Das funktionale Modell: Beobachtungsgleichungen</h2>
+<p>Für jede Beobachtung braucht man eine Formel, die sie aus den Unbekannten berechnet. Mit den Koordinaten
+von Standpunkt <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>i</mi></mrow></math> und Zielpunkt <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>j</mi></mrow></math> gilt</p>
+<p><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mi>&#x00394;</mi><mi>y</mi><mo>&#x0003D;</mo><msub><mi>y</mi><mi>j</mi></msub><mo>&#x02212;</mo><msub><mi>y</mi><mi>i</mi></msub><mo>&#x0002C;</mo><mspace width="2em" /><mi>&#x00394;</mi><mi>x</mi><mo>&#x0003D;</mo><msub><mi>x</mi><mi>j</mi></msub><mo>&#x02212;</mo><msub><mi>x</mi><mi>i</mi></msub><mo>&#x0002C;</mo><mspace width="2em" /><msub><mi>s</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo>&#x0003D;</mo><msqrt><mrow><mi>&#x00394;</mi><msup><mi>y</mi><mn>2</mn></msup><mo>&#x0002B;</mo><mi>&#x00394;</mi><msup><mi>x</mi><mn>2</mn></msup></mrow></msqrt><mo>&#x0002C;</mo><mspace width="2em" /><msub><mi>t</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo>&#x0003D;</mo><mi>arctan</mi><mfrac><mrow><mi>&#x00394;</mi><mi>y</mi></mrow><mrow><mi>&#x00394;</mi><mi>x</mi></mrow></mfrac><mo>&#x0002E;</mo></mrow></math></p>
+<p>Der Richtungswinkel <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>t</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub></mrow></math> wird quadrantenrichtig über die zweiargumentige Arkustangensfunktion bestimmt
+und auf 0 … 400 gon gebracht.</p>
+<h3>5.1 Richtung</h3>
+<p>Ein Tachymeter misst keine Richtungswinkel, sondern Richtungen <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>r</mi></mrow></math> gegen seine willkürliche Nullrichtung.
+Der Unterschied ist die <strong>Orientierung</strong> <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>o</mi><mi>i</mi></msub></mrow></math> des Standpunkts, eine zusätzliche Unbekannte je Satz:</p>
+<p><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><msub><mi>r</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo>&#x0003D;</mo><msub><mi>t</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo>&#x02212;</mo><msub><mi>o</mi><mi>i</mi></msub><mo>&#x0002E;</mo></mrow></math></p>
+<h3>5.2 Horizontalstrecke</h3>
+<p><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><msub><mi>s</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo>&#x0003D;</mo><msqrt><mrow><mi>&#x00394;</mi><msup><mi>y</mi><mn>2</mn></msup><mo>&#x0002B;</mo><mi>&#x00394;</mi><msup><mi>x</mi><mn>2</mn></msup></mrow></msqrt><mspace width="0.167em" /><mo stretchy="false">&#x00028;</mo><mn>1</mn><mo>&#x0002B;</mo><mi>&#x003BC;</mi><mo>&#x000B7;</mo><msup><mn>10</mn><mrow><mo>&#x02212;</mo><mn>6</mn></mrow></msup><mo stretchy="false">&#x00029;</mo><mo>&#x0002C;</mo></mrow></math></p>
+<p><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>&#x003BC;</mi></mrow></math> ist ein Maßstabsfaktor in ppm. Er wird nur in den Varianten mit Maßstab (2 und 4) mitgeschätzt, sonst ist
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>&#x003BC;</mi><mo>&#x0003D;</mo><mn>0</mn></mrow></math>.</p>
+<h3>5.3 Schrägstrecke und Zenitwinkel (3D)</h3>
+<p>Mit Instrumentenhöhe <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>i</mi></mrow></math>, Zielhöhe <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>t</mi></mrow></math>, Erdradius <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>R</mi></mrow></math> = 6 380 000 m und Refraktionskoeffizient <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>k</mi></mrow></math>:</p>
+<p><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mi>&#x00394;</mi><mi>z</mi><mo>&#x0003D;</mo><mo stretchy="false">&#x00028;</mo><msub><mi>H</mi><mi>j</mi></msub><mo>&#x0002B;</mo><mi>t</mi><mo stretchy="false">&#x00029;</mo><mo>&#x02212;</mo><mo stretchy="false">&#x00028;</mo><msub><mi>H</mi><mi>i</mi></msub><mo>&#x0002B;</mo><mi>i</mi><mo stretchy="false">&#x00029;</mo><mo>&#x02212;</mo><mo stretchy="false">&#x00028;</mo><mn>1</mn><mo>&#x02212;</mo><mi>k</mi><mo stretchy="false">&#x00029;</mo><mspace width="0.167em" /><mfrac><mrow><msup><mi>s</mi><mn>2</mn></msup></mrow><mrow><mn>2</mn><mi>R</mi></mrow></mfrac></mrow></math></p>
+<p><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><msub><mi>z</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo>&#x0003D;</mo><mi>arctan</mi><mfrac><mrow><mi>s</mi></mrow><mrow><mi>&#x00394;</mi><mi>z</mi></mrow></mfrac><mo>&#x0002C;</mo><mspace width="2em" /><msub><mi>S</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo>&#x0003D;</mo><msqrt><mrow><msup><mi>s</mi><mn>2</mn></msup><mo>&#x0002B;</mo><mi>&#x00394;</mi><msubsup><mi>z</mi><mn>0</mn><mn>2</mn></msubsup></mrow></msqrt><mspace width="0.167em" /><mo stretchy="false">&#x00028;</mo><mn>1</mn><mo>&#x0002B;</mo><mi>&#x003BC;</mi><mo>&#x000B7;</mo><msup><mn>10</mn><mrow><mo>&#x02212;</mo><mn>6</mn></mrow></msup><mo stretchy="false">&#x00029;</mo><mo>&#x0002E;</mo></mrow></math></p>
+<p>Für die Schrägstrecke verwendet AUSGL-NT <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>&#x00394;</mi><msub><mi>z</mi><mn>0</mn></msub></mrow></math> mit der Erdkrümmung <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msup><mi>s</mi><mn>2</mn></msup><mo>&#x0002F;</mo><mo stretchy="false">&#x00028;</mo><mn>2</mn><mi>R</mi><mo stretchy="false">&#x00029;</mo></mrow></math> allein, ohne Refraktion.
+Der Refraktionskoeffizient ist fest <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>k</mi></mrow></math> = 0,1324. Er steckt im Original WAUSGL in der Konstanten
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>68</mn><mo>&#x000B7;</mo><msup><mn>10</mn><mrow><mo>&#x02212;</mo><mn>9</mn></mrow></msup><mo>&#x0003D;</mo><mo stretchy="false">&#x00028;</mo><mn>1</mn><mo>&#x02212;</mo><mi>k</mi><mo stretchy="false">&#x00029;</mo><mo>&#x0002F;</mo><mo stretchy="false">&#x00028;</mo><mn>2</mn><mi>R</mi><mo stretchy="false">&#x00029;</mo></mrow></math>.</p>
+<h3>5.4 Höhenunterschied</h3>
+<p>Nivellement und gegebene Höhenunterschiede: <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>&#x00394;</mi><msub><mi>h</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo>&#x0003D;</mo><msub><mi>H</mi><mi>j</mi></msub><mo>&#x02212;</mo><msub><mi>H</mi><mi>i</mi></msub></mrow></math>.</p>
+<p>Aus einer Tachymetermessung mit Schrägstrecke <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>S</mi></mrow></math> und Zenitwinkel <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>z</mi></mrow></math> entsteht der Höhenunterschied
+Boden–Boden so:</p>
+<p><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mi>s</mi><mo>&#x0003D;</mo><mo stretchy="false">&#x0007C;</mo><mi>S</mi><mi>sin</mi><mi>z</mi><mo stretchy="false">&#x0007C;</mo><mo>&#x0002C;</mo><mspace width="2em" /><mi>&#x00394;</mi><mi>h</mi><mo>&#x0003D;</mo><mfrac><mrow><mi>s</mi></mrow><mrow><mi>tan</mi><mi>z</mi></mrow></mfrac><mo>&#x0002B;</mo><mn>68</mn><mo>&#x000B7;</mo><msup><mn>10</mn><mrow><mo>&#x02212;</mo><mn>9</mn></mrow></msup><mspace width="0.167em" /><msup><mi>s</mi><mn>2</mn></msup><mo>&#x0002B;</mo><mi>i</mi><mo>&#x02212;</mo><mi>t</mi><mo>&#x0002E;</mo></mrow></math></p>
+<p><strong>Zahlenbeispiel:</strong> <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>S</mi></mrow></math> = 150,000 m, <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>z</mi></mrow></math> = 98,0000 gon, <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>i</mi></mrow></math> = 1,550 m, <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>t</mi></mrow></math> = 1,300 m.
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>sin</mi><mi>z</mi><mo>&#x0003D;</mo><mn>0,999507</mn></mrow></math>, also <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>s</mi><mo>&#x0003D;</mo><mn>149,926</mn></mrow></math> m; <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>tan</mi><mi>z</mi><mo>&#x0003D;</mo><mn>31,8205</mn></mrow></math>, also <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>s</mi><mo>&#x0002F;</mo><mi>tan</mi><mi>z</mi><mo>&#x0003D;</mo><mn>4,7116</mn></mrow></math> m;
+Erdkrümmung und Refraktion <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>68</mn><mo>&#x000B7;</mo><msup><mn>10</mn><mrow><mo>&#x02212;</mo><mn>9</mn></mrow></msup><mo>&#x000B7;</mo><mn>149</mn><mrow><mo>&#x0002C;</mo></mrow><msup><mn>926</mn><mn>2</mn></msup><mo>&#x0003D;</mo><mn>0,0015</mn></mrow></math> m.
+Ergebnis: <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>&#x00394;</mi><mi>h</mi><mo>&#x0003D;</mo><mn>4,7116</mn><mo>&#x0002B;</mo><mn>0,0015</mn><mo>&#x0002B;</mo><mn>1,550</mn><mo>&#x02212;</mo><mn>1,300</mn><mo>&#x0003D;</mo><mn>4,963</mn></mrow></math> m.</p>
+<h3>5.5 Streckenreduktion (optional)</h3>
+<p>Mit der Einstellung <em>Strecken reduzieren</em> werden Strecken auf die Abbildungsebene reduziert, mit mittlerer
+Höhe <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>H</mi><mi>m</mi></msub></mrow></math> und Abstand vom Mittelmeridian <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>y</mi><mi>m</mi></msub></mrow></math>:</p>
+<p><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><msub><mi>s</mi><mrow><mrow><mi mathvariant="normal">r</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">d</mi></mrow></mrow></msub><mo>&#x0003D;</mo><mi>s</mi><mo>&#x02212;</mo><mfrac><mrow><msub><mi>H</mi><mi>m</mi></msub></mrow><mrow><mi>R</mi></mrow></mfrac><mspace width="0.167em" /><mi>s</mi><mo>&#x0002B;</mo><mfrac><mrow><msubsup><mi>y</mi><mi>m</mi><mn>2</mn></msubsup></mrow><mrow><mn>2</mn><msup><mi>R</mi><mn>2</mn></msup></mrow></mfrac><mspace width="0.167em" /><mi>s</mi><mo>&#x0002E;</mo></mrow></math></p>
+<div class="prof">
+<p>Die Ableitungen der Beobachtungsgleichungen nach den Unbekannten (Designmatrix
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>&#x1D400;</mi></mrow></math>) bildet AUSGL-NT <em>numerisch</em> mit zentralen Differenzen und der Schrittweite <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>h</mi><mo>&#x0003D;</mo><msup><mn>10</mn><mrow><mo>&#x02212;</mo><mn>4</mn></mrow></msup></mrow></math> m:
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02202;</mo><mi>f</mi><mo>&#x0002F;</mo><mo>&#x02202;</mo><mi>X</mi><mo>&#x02248;</mo><mo stretchy="false">[</mo><mi>f</mi><mo stretchy="false">&#x00028;</mo><mi>X</mi><mo>&#x0002B;</mo><mi>h</mi><mo stretchy="false">&#x00029;</mo><mo>&#x02212;</mo><mi>f</mi><mo stretchy="false">&#x00028;</mo><mi>X</mi><mo>&#x02212;</mo><mi>h</mi><mo stretchy="false">&#x00029;</mo><mo stretchy="false">]</mo><mo>&#x0002F;</mo><mo stretchy="false">&#x00028;</mo><mn>2</mn><mi>h</mi><mo stretchy="false">&#x00029;</mo></mrow></math>. Der Abbruchfehler ist von der Ordnung <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msup><mi>h</mi><mn>2</mn></msup><msup><mi>f</mi><mi>&#x02034;</mi></msup></mrow></math>
+und bei geodätischen Netzen vernachlässigbar. Bei sehr kurzen Visuren (wenige Dezimeter, etwa
+Exzentrizitäten) wird die Krümmung der Richtungsfunktion aber spürbar; dann ist die analytische Ableitung
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02202;</mo><mi>t</mi><mo>&#x0002F;</mo><mo>&#x02202;</mo><msub><mi>y</mi><mi>j</mi></msub><mo>&#x0003D;</mo><mi>&#x003C1;</mi><mspace width="0.167em" /><mi>&#x00394;</mi><mi>x</mi><mo>&#x0002F;</mo><msup><mi>s</mi><mn>2</mn></msup></mrow></math>, <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02202;</mo><mi>t</mi><mo>&#x0002F;</mo><mo>&#x02202;</mo><msub><mi>x</mi><mi>j</mi></msub><mo>&#x0003D;</mo><mo>&#x02212;</mo><mi>&#x003C1;</mi><mspace width="0.167em" /><mi>&#x00394;</mi><mi>y</mi><mo>&#x0002F;</mo><msup><mi>s</mi><mn>2</mn></msup></mrow></math> vorzuziehen.
+Weitere Fallstricke: Der Refraktionskoeffizient ist fest, wird also nicht geschätzt; bei bodennahen Visuren
+schwankt <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>k</mi></mrow></math> real zwischen etwa −1 und +1, die Zenitwinkel sind dann systematisch verfälscht. Bei der
+Schrägstrecke wird die Refraktion ganz vernachlässigt, beim Zenitwinkel nicht – das ist konsistent nur,
+solange die Bahnkrümmung des Strahls die Länge praktisch nicht ändert, was bei geodätischen Weiten zutrifft.</p>
+</div>
+<hr />
+<h2>6. Näherungskoordinaten</h2>
+<p>Die Beobachtungsgleichungen sind nicht linear. Die Ausgleichung braucht deshalb für jeden Neupunkt
+<strong>Näherungskoordinaten</strong>, von denen aus sie iterativ verbessert. AUSGL-NT bestimmt sie automatisch, in dieser
+Reihenfolge und so oft hintereinander, bis kein weiterer Punkt dazukommt:</p>
+<ol>
+<li><strong>Orientierung</strong> eines Standpunkts aus bekannten Zielen: <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>o</mi><mo>&#x0003D;</mo><mi>t</mi><mo>&#x02212;</mo><mi>r</mi></mrow></math>, gemittelt; Werte, die mehr als
+   0,1 gon vom Median abweichen, werden verworfen.</li>
+<li><strong>Polarpunkt</strong> von einem orientierten Standpunkt: <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>y</mi><mo>&#x0003D;</mo><msub><mi>y</mi><mi>S</mi></msub><mo>&#x0002B;</mo><mi>s</mi><mspace width="0.167em" /><mi>sin</mi><mo stretchy="false">&#x00028;</mo><mi>r</mi><mo>&#x0002B;</mo><mi>o</mi><mo stretchy="false">&#x00029;</mo></mrow></math>, <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>x</mi><mo>&#x0003D;</mo><msub><mi>x</mi><mi>S</mi></msub><mo>&#x0002B;</mo><mi>s</mi><mspace width="0.167em" /><mi>cos</mi><mo stretchy="false">&#x00028;</mo><mi>r</mi><mo>&#x0002B;</mo><mi>o</mi><mo stretchy="false">&#x00029;</mo></mrow></math>.</li>
+<li><strong>Freie Stationierung</strong>: unbekannter Standpunkt mit mindestens zwei bekannten Zielen (Richtung und
+   Strecke) – ebene Ähnlichkeitstransformation vom örtlichen in das Landessystem.</li>
+<li><strong>Vorwärtseinschnitt</strong> aus zwei orientierten Strahlen.</li>
+<li><strong>Bogenschnitt</strong> aus zwei Strecken von bekannten Standpunkten.</li>
+<li><strong>Rückwärtseinschnitt</strong> aus mindestens drei Richtungen zu bekannten Punkten.</li>
+</ol>
+<p>Höhen werden über Höhenunterschiede (trigonometrisch oder Nivellement) von bekannten Punkten aus fortgepflanzt.
+Welche Bestimmung für welchen Punkt verwendet wurde, steht im Reiter <em>Daten ▸ Näherungswerte</em>.</p>
+<p>In einer Netzdatei oder einem CAPLAN-Datensatz stehen die Näherungskoordinaten meist schon in der Datei; sie
+werden dann direkt verwendet.</p>
+<div class="prof">
+<p>Die Konvergenz des Gauß-Newton-Verfahrens ist nur lokal garantiert. Schlechte
+Näherungen bei schleifenden Schnitten (Vorwärtseinschnitt mit Schnittwinkeln unter etwa 20 gon,
+Rückwärtseinschnitt nahe dem gefährlichen Kreis) können zu Divergenz oder zur Konvergenz gegen eine falsche
+Lösung führen – beim Bogenschnitt etwa gegen den gespiegelten Punkt. AUSGL-NT löst die Zweideutigkeit des
+Bogenschnitts über eine dritte Strecke oder den Drehsinn der Richtungen; fehlt beides, ist das Ergebnis zu
+prüfen. Der Rückwärtseinschnitt wird intern von mehreren Startwerten aus gerechnet, um dem gefährlichen
+Kreis auszuweichen; liegen alle Anschlusspunkte nahezu auf einem Kreis mit dem Standpunkt, bleibt die Lösung
+trotzdem schlecht bestimmt (große Ellipse, kleine Redundanzanteile).</p>
+</div>
+<hr />
+<h2>7. Die Ausgleichung nach vermittelnden Beobachtungen</h2>
+<h3>7.1 Linearisierung</h3>
+<p>Man setzt die Unbekannten als Näherung plus kleinen Zuschlag an: <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>&#x1D417;</mi><mo>&#x0003D;</mo><msub><mi>&#x1D417;</mi><mn>0</mn></msub><mo>&#x0002B;</mo><mi>&#x003B4;</mi><mi>&#x1D431;</mi></mrow></math>.
+Die Taylor-Entwicklung bis zum linearen Glied ergibt die <strong>Verbesserungsgleichungen</strong></p>
+<p><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mi>&#x1D42F;</mi><mo>&#x0003D;</mo><mi>&#x1D400;</mi><mspace width="0.167em" /><mi>&#x003B4;</mi><mi>&#x1D431;</mi><mo>&#x02212;</mo><mi>&#x1D425;</mi><mo>&#x0002C;</mo><mspace width="2em" /><mi>&#x1D425;</mi><mo>&#x0003D;</mo><mi>&#x1D40B;</mi><mo>&#x02212;</mo><mi>f</mi><mo stretchy="false">&#x00028;</mo><msub><mi>&#x1D417;</mi><mn>0</mn></msub><mo stretchy="false">&#x00029;</mo><mo>&#x0002E;</mo></mrow></math></p>
+<ul>
+<li><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>&#x1D400;</mi></mrow></math> (<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>n</mi><mo>&#x000D7;</mo><mi>u</mi></mrow></math>) ist die <strong>Designmatrix</strong>: die Ableitungen der Beobachtungen nach den Unbekannten.</li>
+<li><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>&#x1D425;</mi></mrow></math> ist der <strong>gekürzte Beobachtungsvektor</strong> („gemessen minus gerechnet“).</li>
+<li><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>&#x1D42F;</mi></mrow></math> sind die <strong>Verbesserungen</strong>: so viel muss man an jeder Messung ändern, damit alles widerspruchsfrei passt.</li>
+</ul>
+<p>Bei Winkeln wird die Differenz in <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>&#x1D425;</mi></mrow></math> auf −200 … +200 gon gebracht, damit z. B. 399,9 gon und 0,1 gon
+als 0,2 gon Unterschied erkannt werden.</p>
+<h3>7.2 Methode der kleinsten Quadrate</h3>
+<p>Gesucht ist die Lösung, bei der die gewichtete Quadratsumme der Verbesserungen am kleinsten ist:</p>
+<p><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mi>&#x003A9;</mi><mo>&#x0003D;</mo><msup><mi>&#x1D42F;</mi><mi>T</mi></msup><mi>&#x1D40F;</mi><mspace width="0.167em" /><mi>&#x1D42F;</mi><mo>&#x0003D;</mo><munder><mo>&#x02211;</mo><mi>i</mi></munder><msub><mi>p</mi><mi>i</mi></msub><mspace width="0.167em" /><msubsup><mi>v</mi><mi>i</mi><mn>2</mn></msubsup><mspace width="0.278em" /><mo>&#x02192;</mo><mspace width="0.278em" /><mo>min</mo><mo>&#x0002E;</mo></mrow></math></p>
+<p>Daraus folgen die <strong>Normalgleichungen</strong></p>
+<p><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mi>&#x1D40D;</mi><mspace width="0.167em" /><mi>&#x003B4;</mi><mi>&#x1D431;</mi><mo>&#x0003D;</mo><mi>&#x1D427;</mi><mo>&#x0002C;</mo><mspace width="2em" /><mi>&#x1D40D;</mi><mo>&#x0003D;</mo><msup><mi>&#x1D400;</mi><mi>T</mi></msup><mi>&#x1D40F;</mi><mi>&#x1D400;</mi><mo>&#x0002C;</mo><mspace width="2em" /><mi>&#x1D427;</mi><mo>&#x0003D;</mo><msup><mi>&#x1D400;</mi><mi>T</mi></msup><mi>&#x1D40F;</mi><mspace width="0.167em" /><mi>&#x1D425;</mi></mrow></math></p>
+<p>mit der Lösung und der <strong>Kofaktormatrix der Unbekannten</strong></p>
+<p><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mi>&#x003B4;</mi><mover accent="true"><mrow><mi>&#x1D431;</mi></mrow><mo>&#x0005E;</mo></mover><mo>&#x0003D;</mo><msup><mi>&#x1D40D;</mi><mrow><mo>&#x02212;</mo><mn>1</mn></mrow></msup><mi>&#x1D427;</mi><mo>&#x0002C;</mo><mspace width="2em" /><msub><mi>&#x1D410;</mi><mrow><mi>x</mi><mi>x</mi></mrow></msub><mo>&#x0003D;</mo><msup><mi>&#x1D40D;</mi><mrow><mo>&#x02212;</mo><mn>1</mn></mrow></msup><mo>&#x0002E;</mo></mrow></math></p>
+<h3>7.3 Iteration (Gauß-Newton)</h3>
+<p>Weil nur linearisiert wurde, rechnet AUSGL-NT mehrmals: Zuschläge anbringen, <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>&#x1D400;</mi></mrow></math> und <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>&#x1D425;</mi></mrow></math> neu
+bilden, wieder lösen. Abgebrochen wird, wenn der größte Zuschlag kleiner als <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msup><mn>10</mn><mrow><mo>&#x02212;</mo><mn>5</mn></mrow></msup></mrow></math> m ist (Orientierungen
+umgerechnet) oder nach höchstens 15 Iterationen (einstellbar). Beim Brückennetz genügten <strong>2 Iterationen</strong>.</p>
+<h3>7.4 Lösungsverfahren</h3>
+<p>Alle vier Verfahren lösen dieselbe Aufgabe <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>min</mo><mo fence="false" stretchy="false">&#x02016;</mo><msup><mi>&#x1D40F;</mi><mrow><mn>1</mn><mo>&#x0002F;</mo><mn>2</mn></mrow></msup><mo stretchy="false">&#x00028;</mo><mi>&#x1D400;</mi><mspace width="0.167em" /><mi>&#x003B4;</mi><mi>&#x1D431;</mi><mo>&#x02212;</mo><mi>&#x1D425;</mi><mo stretchy="false">&#x00029;</mo><msup><mo fence="false" stretchy="false">&#x02016;</mo><mn>2</mn></msup></mrow></math>
+und liefern dasselbe Ergebnis; sie unterscheiden sich in Rechenweg und numerischer Stabilität.</p>
+<table>
+<thead>
+<tr>
+<th>Verfahren</th>
+<th>Prinzip</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Gauß-Jordan (wie Original)</td>
+<td><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>&#x1D40D;</mi></mrow></math> bilden und durch Austauschschritte invertieren</td>
+</tr>
+<tr>
+<td>Cholesky</td>
+<td><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>&#x1D40D;</mi><mo>&#x0003D;</mo><mi>&#x1D40B;</mi><msup><mi>&#x1D40B;</mi><mi>T</mi></msup></mrow></math>, Vorwärts- und Rückwärtseinsetzen</td>
+</tr>
+<tr>
+<td>QR (Householder)</td>
+<td><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msup><mi>&#x1D40F;</mi><mrow><mn>1</mn><mo>&#x0002F;</mo><mn>2</mn></mrow></msup><mi>&#x1D400;</mi><mo>&#x0003D;</mo><mi>&#x1D410;</mi><mi>&#x1D411;</mi></mrow></math> direkt, ohne Normalgleichungen</td>
+</tr>
+<tr>
+<td>SVD (Jacobi)</td>
+<td><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msup><mi>&#x1D40F;</mi><mrow><mn>1</mn><mo>&#x0002F;</mo><mn>2</mn></mrow></msup><mi>&#x1D400;</mi><mo>&#x0003D;</mo><mi>&#x1D414;</mi><mrow><mi mathvariant="bold-italic">&#x003A3;</mi></mrow><msup><mi>&#x1D415;</mi><mi>T</mi></msup></mrow></math>; zeigt Rangdefekte und die Konditionszahl</td>
+</tr>
+</tbody>
+</table>
+<div class="prof">
+<p>Die Konditionszahl der Normalgleichungsmatrix ist das Quadrat der Konditionszahl von
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msup><mi>&#x1D40F;</mi><mrow><mn>1</mn><mo>&#x0002F;</mo><mn>2</mn></mrow></msup><mi>&#x1D400;</mi></mrow></math>: <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>&#x003BA;</mi><mo stretchy="false">&#x00028;</mo><mi>&#x1D40D;</mi><mo stretchy="false">&#x00029;</mo><mo>&#x0003D;</mo><mi>&#x003BA;</mi><mo stretchy="false">&#x00028;</mo><mi>&#x1D400;</mi><msup><mo stretchy="false">&#x00029;</mo><mn>2</mn></msup></mrow></math>. Bei Großkoordinaten (UTM-Rechtswerte
+mit 32 689 789 m) und gemischten Einheiten (gon, m, ppm) kann <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>&#x003BA;</mi><mo stretchy="false">&#x00028;</mo><mi>&#x1D40D;</mi><mo stretchy="false">&#x00029;</mo></mrow></math> in die Größenordnung
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msup><mn>10</mn><mrow><mn>12</mn></mrow></msup></mrow></math> und mehr kommen, sodass Gauß-Jordan und Cholesky in doppelter Genauigkeit spürbar Stellen verlieren.
+QR und SVD arbeiten mit <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>&#x003BA;</mi><mo stretchy="false">&#x00028;</mo><mi>&#x1D400;</mi><mo stretchy="false">&#x00029;</mo></mrow></math> und sind hier robuster; die SVD zeigt zudem verschwindende
+Singulärwerte, also Datums- oder Konfigurationsdefekte. Ein Fallstrick der Konvergenzschranke ist die
+Umrechnung der Orientierungszuschläge: Sie werden über ein Ersatzmaß mit Strecken verglichen. Bei sehr
+großen Netzen kann eine Orientierung daher noch messbar im mgon-Bereich wandern, während das
+Abbruchkriterium schon erfüllt ist. Das Gauß-Newton-Verfahren konvergiert bei kleinen Residuen quadratisch;
+bei groben Fehlern kann es oszillieren – deshalb vorher die Grenzwertprüfung.</p>
+</div>
+<hr />
+<h2>8. Varianten und geodätisches Datum</h2>
+<p>Ein Netz aus Richtungen und Strecken legt nur die <strong>Form</strong> fest, nicht die <strong>Lage</strong> im Koordinatensystem.
+Wo das Netz liegt, bestimmt das <strong>Datum</strong>. AUSGL-NT bietet fünf Varianten (wie WAUSGL):</p>
+<table>
+<thead>
+<tr>
+<th>Variante</th>
+<th>Datum</th>
+<th>Unbekannte</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1. Normale Ausgleichung</td>
+<td>Festpunkte fest</td>
+<td><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>2</mn><mspace width="0.167em" /><msub><mi>n</mi><mrow><mi>N</mi><mi>P</mi></mrow></msub></mrow></math> (+ Orientierungen)</td>
+</tr>
+<tr>
+<td>2. mit Maßstab</td>
+<td>wie 1, zusätzlich Maßstab <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>&#x003BC;</mi></mrow></math></td>
+<td><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>2</mn><mspace width="0.167em" /><msub><mi>n</mi><mrow><mi>N</mi><mi>P</mi></mrow></msub><mo>&#x0002B;</mo><mn>1</mn></mrow></math></td>
+</tr>
+<tr>
+<td>3. Festpunkte als Beobachtungen</td>
+<td>Festpunkte mit <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>&#x003C3;</mi><mrow><mrow><mi mathvariant="normal">f</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">x</mi></mrow></mrow></msub></mrow></math> beweglich</td>
+<td><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>2</mn><mspace width="0.167em" /><mo stretchy="false">&#x00028;</mo><msub><mi>n</mi><mrow><mi>N</mi><mi>P</mi></mrow></msub><mo>&#x0002B;</mo><msub><mi>n</mi><mrow><mi>A</mi><mi>P</mi></mrow></msub><mo stretchy="false">&#x00029;</mo></mrow></math></td>
+</tr>
+<tr>
+<td>4. wie 3, mit Maßstab</td>
+<td></td>
+<td><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>2</mn><mspace width="0.167em" /><mo stretchy="false">&#x00028;</mo><msub><mi>n</mi><mrow><mi>N</mi><mi>P</mi></mrow></msub><mo>&#x0002B;</mo><msub><mi>n</mi><mrow><mi>A</mi><mi>P</mi></mrow></msub><mo stretchy="false">&#x00029;</mo><mo>&#x0002B;</mo><mn>1</mn></mrow></math></td>
+</tr>
+<tr>
+<td>5. Freie Netzausgleichung</td>
+<td>Schwerpunkt-Lagerung über alle Punkte</td>
+<td><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>2</mn><mspace width="0.167em" /><mo stretchy="false">&#x00028;</mo><msub><mi>n</mi><mrow><mi>N</mi><mi>P</mi></mrow></msub><mo>&#x0002B;</mo><msub><mi>n</mi><mrow><mi>A</mi><mi>P</mi></mrow></msub><mo stretchy="false">&#x00029;</mo></mrow></math></td>
+</tr>
+</tbody>
+</table>
+<h3>Freies Netz</h3>
+<p>Ohne Festpunkte ist <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>&#x1D40D;</mi></mrow></math> singulär. Der <strong>Datumsdefekt</strong> <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>d</mi></mrow></math> ist die Zahl der fehlenden Festlegungen:</p>
+<ul>
+<li>Lagenetz mit Strecken: <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>d</mi><mo>&#x0003D;</mo><mn>3</mn></mrow></math> (zwei Verschiebungen, eine Drehung),</li>
+<li>Lagenetz nur mit Richtungen: <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>d</mi><mo>&#x0003D;</mo><mn>4</mn></mrow></math> (zusätzlich der Maßstab),</li>
+<li>Höhennetz: <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>d</mi><mo>&#x0003D;</mo><mn>1</mn></mrow></math> (eine Höhenverschiebung).</li>
+</ul>
+<p>AUSGL-NT stellt die Matrix <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>&#x1D406;</mi></mrow></math> der Datumsparameter auf, z. B. für einen Lagepunkt <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>k</mi></mrow></math> mit
+Schwerpunkt <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mover><mi>y</mi><mo stretchy="true">&#x000AF;</mo></mover><mo>&#x0002C;</mo><mover><mi>x</mi><mo stretchy="true">&#x000AF;</mo></mover><mo stretchy="false">&#x00029;</mo></mrow></math>:</p>
+<p><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><msubsup><mi>&#x1D406;</mi><mi>k</mi><mi>T</mi></msubsup><mo>&#x0003D;</mo><mo>&#x00028;</mo><mtable><mtr><mtd><mn>1</mn></mtd><mtd><mn>0</mn></mtd></mtr><mtr><mtd><mn>0</mn></mtd><mtd><mn>1</mn></mtd></mtr><mtr><mtd><msub><mi>x</mi><mi>k</mi></msub><mo>&#x02212;</mo><mover><mi>x</mi><mo stretchy="true">&#x000AF;</mo></mover></mtd><mtd><mo>&#x02212;</mo><mo stretchy="false">&#x00028;</mo><msub><mi>y</mi><mi>k</mi></msub><mo>&#x02212;</mo><mover><mi>y</mi><mo stretchy="true">&#x000AF;</mo></mover><mo stretchy="false">&#x00029;</mo></mtd></mtr></mtable><mo>&#x00029;</mo></mrow></math></p>
+<p>(Zeilen: Verschiebung Y, Verschiebung X, Drehung). Gelöst wird mit den Bedingungen
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msup><mi>&#x1D406;</mi><mi>T</mi></msup><mi>&#x003B4;</mi><mi>&#x1D431;</mi><mo>&#x0003D;</mo><mrow><mn mathvariant="bold">0</mn></mrow></mrow></math>: Die Koordinatenänderungen haben im Schwerpunkt keine Verschiebung
+und keine Drehung. Die Kofaktormatrix der freien Lösung ist</p>
+<p><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><msub><mi>&#x1D410;</mi><mrow><mi>x</mi><mi>x</mi></mrow></msub><mo>&#x0003D;</mo><msup><mrow><mo stretchy="true" fence="true" form="prefix">&#x00028;</mo><mi>&#x1D40D;</mi><mo>&#x0002B;</mo><mi>&#x1D401;</mi><msup><mi>&#x1D401;</mi><mi>T</mi></msup><mo stretchy="true" fence="true" form="postfix">&#x00029;</mo></mrow><mrow><mo>&#x02212;</mo><mn>1</mn></mrow></msup><mo>&#x02212;</mo><mi>&#x1D406;</mi><msup><mrow><mo stretchy="true" fence="true" form="prefix">&#x00028;</mo><msup><mi>&#x1D406;</mi><mi>T</mi></msup><mi>&#x1D401;</mi><msup><mi>&#x1D401;</mi><mi>T</mi></msup><mi>&#x1D406;</mi><mo stretchy="true" fence="true" form="postfix">&#x00029;</mo></mrow><mrow><mo>&#x02212;</mo><mn>1</mn></mrow></msup><msup><mi>&#x1D406;</mi><mi>T</mi></msup><mo>&#x0002C;</mo></mrow></math></p>
+<p>wobei <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>&#x1D401;</mi></mrow></math> die auf die Koordinaten beschränkte, normierte Form von <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>&#x1D406;</mi></mrow></math> ist. Die Redundanz wird
+um den Defekt erhöht: <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>f</mi><mo>&#x0003D;</mo><mi>n</mi><mo>&#x02212;</mo><mi>u</mi><mo>&#x0002B;</mo><mi>d</mi></mrow></math>.</p>
+<p><strong>Brückennetz:</strong> Lage: 132 Beobachtungen, 50 Unbekannte (22 Punkte × 2 + 6 Orientierungen), Datumsdefekt 3,
+Redundanz <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>f</mi><mo>&#x0003D;</mo><mn>132</mn><mo>&#x02212;</mo><mn>50</mn><mo>&#x0002B;</mo><mn>3</mn><mo>&#x0003D;</mo><mn>85</mn></mrow></math>.</p>
+<div class="prof">
+<p>Die verwendeten Bedingungen entsprechen der Gesamtspurminimierung
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mi mathvariant="normal">s</mi><mi mathvariant="normal">p</mi></mrow><mo stretchy="false">&#x00028;</mo><msub><mi>&#x1D410;</mi><mrow><mi>x</mi><mi>x</mi></mrow></msub><mo stretchy="false">&#x00029;</mo><mo>&#x02192;</mo><mo>min</mo></mrow></math> über alle Koordinaten (Pseudoinverse bezüglich der
+Koordinaten, die Orientierungen tragen nur die Drehung mit). Alle datumsabhängigen Größen –
+Koordinaten, Standardabweichungen, Fehlerellipsen – gelten nur für <strong>diese</strong> Lagerung; eine andere Wahl der
+Datumspunkte (Teilspurminimierung) liefert andere, gleich richtige Werte, die über eine S-Transformation
+ineinander überführbar sind. Datumsinvariant sind dagegen <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>&#x1D42F;</mi></mrow></math>, <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>s</mi><mn>0</mn></msub></mrow></math>, die Redundanzanteile und
+geschätzte Strecken und Winkel. Ein häufiger Fehler ist es, die Ellipsen eines freien Netzes als „absolute“
+Punktgenauigkeit zu interpretieren. Fehlen Strecken ganz, nimmt AUSGL-NT den Maßstab automatisch ins Datum
+auf (<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>d</mi><mo>&#x0003D;</mo><mn>4</mn></mrow></math>); dann ist auch der Maßstab nur durch die Lagerung festgelegt. Bei Variante 3 und 4 hängen die
+Ergebnisse empfindlich von <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>&#x003C3;</mi><mrow><mrow><mi mathvariant="normal">f</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">x</mi></mrow></mrow></msub></mrow></math> ab: Ist es zu klein, erzwingt man Spannungen aus den
+Festpunkten ins Netz.</p>
+</div>
+<hr />
+<h2>9. Beurteilung des Ergebnisses</h2>
+<h3>9.1 Standardabweichung der Gewichtseinheit <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>s</mi><mn>0</mn></msub></mrow></math></h3>
+<p><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><msub><mi>s</mi><mn>0</mn></msub><mo>&#x0003D;</mo><msqrt><mrow><mfrac><mrow><msup><mi>&#x1D42F;</mi><mi>T</mi></msup><mi>&#x1D40F;</mi><mi>&#x1D42F;</mi></mrow><mrow><mi>f</mi></mrow></mfrac></mrow></msqrt></mrow></math></p>
+<p>Ist das stochastische Modell richtig, liegt <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>s</mi><mn>0</mn></msub></mrow></math> nahe 1. Deutlich größer heißt: Die Messungen sind
+ungenauer als angenommen oder es gibt grobe Fehler. Deutlich kleiner heißt: Die Genauigkeiten sind zu
+pessimistisch angesetzt.</p>
+<p><strong>Brückennetz (Lage):</strong> <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msup><mi>&#x1D42F;</mi><mi>T</mi></msup><mi>&#x1D40F;</mi><mi>&#x1D42F;</mi></mrow></math> = 66,1669, <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>f</mi></mrow></math> = 85, also
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>s</mi><mn>0</mn></msub><mo>&#x0003D;</mo><msqrt><mrow><mn>66,1669</mn><mo>&#x0002F;</mo><mn>85</mn></mrow></msqrt><mo>&#x0003D;</mo><mn>0,882</mn></mrow></math>.</p>
+<h3>9.2 Globaltest</h3>
+<p>Der Globaltest prüft, ob <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msup><mi>&#x1D42F;</mi><mi>T</mi></msup><mi>&#x1D40F;</mi><mi>&#x1D42F;</mi></mrow></math> zu einer <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msup><mi>&#x003C7;</mi><mn>2</mn></msup></mrow></math>-Verteilung mit <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>f</mi></mrow></math>
+Freiheitsgraden passt (zweiseitig, Irrtumswahrscheinlichkeit 5 %). Die Grenzen berechnet AUSGL-NT mit der
+Näherung von Wilson und Hilferty:</p>
+<p><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><msubsup><mi>&#x003C7;</mi><mrow><mi>f</mi><mo>&#x0002C;</mo><mspace width="0.167em" /><mi>q</mi></mrow><mn>2</mn></msubsup><mo>&#x02248;</mo><mi>f</mi><msup><mrow><mo stretchy="true" fence="true" form="prefix">&#x00028;</mo><mn>1</mn><mo>&#x02212;</mo><mfrac><mrow><mn>2</mn></mrow><mrow><mn>9</mn><mi>f</mi></mrow></mfrac><mo>&#x0002B;</mo><msub><mi>z</mi><mi>q</mi></msub><msqrt><mrow><mfrac><mrow><mn>2</mn></mrow><mrow><mn>9</mn><mi>f</mi></mrow></mfrac></mrow></msqrt><mo stretchy="true" fence="true" form="postfix">&#x00029;</mo></mrow><mn>3</mn></msup><mo>&#x0002C;</mo><mspace width="2em" /><msub><mi>z</mi><mrow><mn>0,975</mn></mrow></msub><mo>&#x0003D;</mo><mn>1,96</mn><mo>&#x0002E;</mo></mrow></math></p>
+<p><strong>Brückennetz:</strong> <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>f</mi></mrow></math> = 85 ergibt die Grenzen 61,4 und 112,4. Weil 66,17 dazwischen liegt, ist der Globaltest
+<strong>bestanden</strong>.</p>
+<h3>9.3 Redundanzanteile – wie gut ist eine Messung kontrolliert?</h3>
+<p><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><msub><mi>r</mi><mi>i</mi></msub><mo>&#x0003D;</mo><msub><mrow><mo stretchy="true" fence="true" form="prefix">&#x00028;</mo><msub><mi>&#x1D410;</mi><mrow><mi>v</mi><mi>v</mi></mrow></msub><mi>&#x1D40F;</mi><mo stretchy="true" fence="true" form="postfix">&#x00029;</mo></mrow><mrow><mi>i</mi><mi>i</mi></mrow></msub><mo>&#x0003D;</mo><mn>1</mn><mo>&#x02212;</mo><msub><mi>p</mi><mi>i</mi></msub><mspace width="0.167em" /><msub><mi>&#x1D41A;</mi><mi>i</mi></msub><mspace width="0.167em" /><msub><mi>&#x1D410;</mi><mrow><mi>x</mi><mi>x</mi></mrow></msub><mspace width="0.167em" /><msubsup><mi>&#x1D41A;</mi><mi>i</mi><mi>T</mi></msubsup><mo>&#x0002C;</mo><mspace width="2em" /><munder><mo>&#x02211;</mo><mi>i</mi></munder><msub><mi>r</mi><mi>i</mi></msub><mo>&#x0003D;</mo><mi>f</mi><mo>&#x0002E;</mo></mrow></math></p>
+<p><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>r</mi><mi>i</mi></msub></mrow></math> liegt zwischen 0 und 1. Bei <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>r</mi><mi>i</mi></msub></mrow></math> = 0 wird ein Fehler dieser Messung gar nicht sichtbar (nicht
+kontrolliert), bei <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>r</mi><mi>i</mi></msub></mrow></math> = 1 vollständig. Das Protokoll markiert schlecht kontrollierte Beobachtungen:
+<code>#</code> bei <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>r</mi><mi>i</mi></msub><mo>&#x02264;</mo><mn>0,1</mn></mrow></math>, <code>##</code> bei <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>r</mi><mi>i</mi></msub><mo>&#x02264;</mo><mn>0,03</mn></mrow></math> (Grenzen wie im Original).</p>
+<h3>9.4 Normierte Verbesserung – Ausreißertest nach Baarda</h3>
+<p><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mi>N</mi><msub><mi>V</mi><mi>i</mi></msub><mo>&#x0003D;</mo><mfrac><mrow><mo stretchy="false">&#x0007C;</mo><msub><mi>v</mi><mi>i</mi></msub><mo stretchy="false">&#x0007C;</mo></mrow><mrow><msub><mi>&#x003C3;</mi><mi>i</mi></msub><msqrt><mrow><msub><mi>r</mi><mi>i</mi></msub></mrow></msqrt></mrow></mfrac></mrow></math></p>
+<p>Ist <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>N</mi><msub><mi>V</mi><mi>i</mi></msub><mo>&#x0003E;</mo><mn>3,29</mn></mrow></math>, gilt die Beobachtung als <strong>Ausreißer</strong> (Irrtumswahrscheinlichkeit 0,1 %). Der
+<strong>geschätzte grobe Fehler</strong> ist</p>
+<p><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mi>G</mi><msub><mi>F</mi><mi>i</mi></msub><mo>&#x0003D;</mo><mo>&#x02212;</mo><mfrac><mrow><msub><mi>v</mi><mi>i</mi></msub></mrow><mrow><msub><mi>r</mi><mi>i</mi></msub></mrow></mfrac><mo>&#x0002E;</mo></mrow></math></p>
+<p><strong>Zahlenbeispiel Brückennetz:</strong> Richtung SP5 → ZP2, <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>v</mi></mrow></math> = 2,69 mgon, <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>&#x003C3;</mi></mrow></math> = 0,954 mgon, <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>r</mi></mrow></math> = 0,65:</p>
+<p><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mi>N</mi><mi>V</mi><mo>&#x0003D;</mo><mfrac><mrow><mn>2,69</mn></mrow><mrow><mn>0,954</mn><mo>&#x000B7;</mo><msqrt><mrow><mn>0,65</mn></mrow></msqrt></mrow></mfrac><mo>&#x0003D;</mo><mfrac><mrow><mn>2,69</mn></mrow><mrow><mn>0,769</mn></mrow></mfrac><mo>&#x0003D;</mo><mn>3,50</mn><mo>&#x0003E;</mo><mn>3,29</mn><mspace width="0.278em" /><mo>&#x021D2;</mo><mspace width="0.278em" /><mtext>Ausreißer</mtext><mo>&#x0002C;</mo><mspace width="2em" /><mi>G</mi><mi>F</mi><mo>&#x0003D;</mo><mo>&#x02212;</mo><mfrac><mrow><mn>2,69</mn></mrow><mrow><mn>0,65</mn></mrow></mfrac><mo>&#x02248;</mo><mo>&#x02212;</mo><mn>4,1</mn><mtext>&#x000A0;</mtext><mrow><mi mathvariant="normal">m</mi><mi mathvariant="normal">g</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">n</mi></mrow><mo>&#x0002E;</mo></mrow></math></p>
+<p>Ebenso die Strecke SP1 → ZP2: <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>v</mi></mrow></math> = −3,49 mm, <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>&#x003C3;</mi></mrow></math> = 1,23 mm, <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>r</mi></mrow></math> = 0,62 ergibt <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>N</mi><mi>V</mi></mrow></math> = 3,60 und
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>G</mi><mi>F</mi></mrow></math> = +5,6 mm.</p>
+<div class="prof">
+<p>Der Test verwendet <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>&#x003C3;</mi><mn>0</mn></msub></mrow></math> <strong>a priori</strong> (<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>w</mi></mrow></math>-Test nach Baarda). Ist <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>s</mi><mn>0</mn></msub></mrow></math> deutlich
+von 1 verschieden, wäre der <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>&#x003C4;</mi></mrow></math>-Test nach Pope mit <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>s</mi><mn>0</mn></msub></mrow></math> a posteriori angemessener. Der Test ist streng nur
+für <strong>einen</strong> groben Fehler gültig (Einzelfehlerhypothese); bei mehreren Fehlern verschmiert die
+Ausgleichung sie über benachbarte Beobachtungen (<em>Verschmierungseffekt</em>), sodass auch korrekte Messungen
+auffällig werden können. Man streicht deshalb immer nur die <strong>größte</strong> normierte Verbesserung und rechnet
+neu (<em>Data Snooping</em>). Der kritische Wert 3,29 gehört zu <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>&#x003B1;</mi><mn>0</mn></msub></mrow></math> = 0,1 % zweiseitig; im
+B-Methode-Konzept nach Baarda wird er zusammen mit der Testgüte <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>&#x003B2;</mi><mn>0</mn></msub></mrow></math> = 80 % gewählt, woraus der
+Nichtzentralitätsparameter <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>&#x003B4;</mi><mn>0</mn></msub><mo>&#x0003D;</mo><mn>4,13</mn></mrow></math> und der kleinste aufdeckbare Fehler
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mo>&#x02207;</mo><mn>0</mn></msub><msub><mi>L</mi><mi>i</mi></msub><mo>&#x0003D;</mo><msub><mi>&#x003B4;</mi><mn>0</mn></msub><mspace width="0.167em" /><msub><mi>&#x003C3;</mi><mi>i</mi></msub><mo>&#x0002F;</mo><msqrt><mrow><msub><mi>r</mi><mi>i</mi></msub></mrow></msqrt></mrow></math> folgen (innere Zuverlässigkeit; von AUSGL-NT nicht ausgegeben).
+Bei <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>r</mi><mi>i</mi></msub><mo>&#x0003C;</mo><mn>0,1</mn></mrow></math> ist <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>G</mi><msub><mi>F</mi><mi>i</mi></msub></mrow></math> unzuverlässig, weil kleine Redundanzanteile im Nenner stehen.</p>
+</div>
+<h3>9.5 Fehlerellipsen</h3>
+<p>Aus der <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>2</mn><mo>&#x000D7;</mo><mn>2</mn></mrow></math>-Untermatrix der Kofaktoren eines Punktes (<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>q</mi><mrow><mi>y</mi><mi>y</mi></mrow></msub></mrow></math>, <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>q</mi><mrow><mi>x</mi><mi>x</mi></mrow></msub></mrow></math>, <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>q</mi><mrow><mi>x</mi><mi>y</mi></mrow></msub></mrow></math>) folgen</p>
+<p><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><msub><mi>s</mi><mi>y</mi></msub><mo>&#x0003D;</mo><msub><mi>s</mi><mn>0</mn></msub><msqrt><mrow><msub><mi>q</mi><mrow><mi>y</mi><mi>y</mi></mrow></msub></mrow></msqrt><mo>&#x0002C;</mo><mspace width="2em" /><msub><mi>s</mi><mi>x</mi></msub><mo>&#x0003D;</mo><msub><mi>s</mi><mn>0</mn></msub><msqrt><mrow><msub><mi>q</mi><mrow><mi>x</mi><mi>x</mi></mrow></msub></mrow></msqrt></mrow></math></p>
+<p><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mi>w</mi><mo>&#x0003D;</mo><msqrt><mrow><mo stretchy="false">&#x00028;</mo><msub><mi>q</mi><mrow><mi>x</mi><mi>x</mi></mrow></msub><mo>&#x02212;</mo><msub><mi>q</mi><mrow><mi>y</mi><mi>y</mi></mrow></msub><msup><mo stretchy="false">&#x00029;</mo><mn>2</mn></msup><mo>&#x0002B;</mo><mn>4</mn><msubsup><mi>q</mi><mrow><mi>x</mi><mi>y</mi></mrow><mn>2</mn></msubsup></mrow></msqrt><mo>&#x0002C;</mo><mspace width="2em" /><mi>A</mi><mo>&#x0003D;</mo><msub><mi>s</mi><mn>0</mn></msub><msqrt><mrow><mfrac><mrow><msub><mi>q</mi><mrow><mi>y</mi><mi>y</mi></mrow></msub><mo>&#x0002B;</mo><msub><mi>q</mi><mrow><mi>x</mi><mi>x</mi></mrow></msub><mo>&#x0002B;</mo><mi>w</mi></mrow><mrow><mn>2</mn></mrow></mfrac></mrow></msqrt><mo>&#x0002C;</mo><mspace width="2em" /><mi>B</mi><mo>&#x0003D;</mo><msub><mi>s</mi><mn>0</mn></msub><msqrt><mrow><mfrac><mrow><msub><mi>q</mi><mrow><mi>y</mi><mi>y</mi></mrow></msub><mo>&#x0002B;</mo><msub><mi>q</mi><mrow><mi>x</mi><mi>x</mi></mrow></msub><mo>&#x02212;</mo><mi>w</mi></mrow><mrow><mn>2</mn></mrow></mfrac></mrow></msqrt></mrow></math></p>
+<p><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mi>&#x003B8;</mi><mo>&#x0003D;</mo><mfrac><mrow><mn>1</mn></mrow><mrow><mn>2</mn></mrow></mfrac><mi>arctan</mi><mfrac><mrow><mn>2</mn><msub><mi>q</mi><mrow><mi>x</mi><mi>y</mi></mrow></msub></mrow><mrow><msub><mi>q</mi><mrow><mi>x</mi><mi>x</mi></mrow></msub><mo>&#x02212;</mo><msub><mi>q</mi><mrow><mi>y</mi><mi>y</mi></mrow></msub></mrow></mfrac></mrow></math></p>
+<p><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>A</mi></mrow></math> und <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>B</mi></mrow></math> sind die große und kleine Halbachse der <strong>Standardellipse</strong>, <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>&#x003B8;</mi></mrow></math> der Richtungswinkel der großen
+Halbachse. Mit der Einstellung <em>Fehlerellipsen mit s0 a posteriori</em> (Voreinstellung) wird <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>s</mi><mn>0</mn></msub></mrow></math> aus der
+Ausgleichung verwendet, sonst 1.</p>
+<p><strong>Brückennetz, Punkt G2:</strong> <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>s</mi><mi>y</mi></msub></mrow></math> = 1,4 mm, <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>s</mi><mi>x</mi></msub></mrow></math> = 0,9 mm, <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>A</mi></mrow></math> = 1,5 mm, <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>B</mi></mrow></math> = 0,7 mm, <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>&#x003B8;</mi></mrow></math> = 73,5 gon.
+Probe: <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msup><mi>A</mi><mn>2</mn></msup><mo>&#x0002B;</mo><msup><mi>B</mi><mn>2</mn></msup><mo>&#x0003D;</mo><msubsup><mi>s</mi><mi>y</mi><mn>2</mn></msubsup><mo>&#x0002B;</mo><msubsup><mi>s</mi><mi>x</mi><mn>2</mn></msubsup></mrow></math> (2,74 ≈ 2,77, Rundung).</p>
+<div class="prof">
+<p>Die Standardellipse enthält die wahre Punktlage nur mit etwa 39 % Wahrscheinlichkeit
+(zweidimensionale Normalverteilung, <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msubsup><mi>&#x003C7;</mi><mn>2</mn><mn>2</mn></msubsup></mrow></math>). Die Option <em>95 % Konfidenz</em> im Netzbild vergrößert die
+Achsen mit dem Faktor <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msqrt><mrow><msubsup><mi>&#x003C7;</mi><mrow><mn>2</mn><mi>;</mi><mn>0,95</mn></mrow><mn>2</mn></msubsup></mrow></msqrt><mo>&#x0003D;</mo><mn>2,4477</mn></mrow></math>. Streng genommen ist bei <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>s</mi><mn>0</mn></msub></mrow></math> a posteriori die
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>F</mi></mrow></math>-Verteilung <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msqrt><mrow><mn>2</mn><msub><mi>F</mi><mrow><mn>2</mn><mo>&#x0002C;</mo><mi>f</mi><mi>;</mi><mn>0,95</mn></mrow></msub></mrow></msqrt></mrow></math> statt <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msup><mi>&#x003C7;</mi><mn>2</mn></msup></mrow></math> zu verwenden; bei großer Redundanz ist der Unterschied
+gering. Fehlerellipsen sind datumsabhängig (Abschnitt 8); für Aussagen über die Netzgeometrie eignen sich
+relative Ellipsen zwischen Punktpaaren besser (nicht in AUSGL-NT enthalten).</p>
+</div>
+<hr />
+<h2>10. Robuste Schätzung</h2>
+<p>Die Methode der kleinsten Quadrate reagiert empfindlich auf grobe Fehler. <strong>Robuste Schätzer</strong> geben
+verdächtigen Beobachtungen schrittweise weniger Gewicht. AUSGL-NT rechnet dazu eine <strong>iterativ neu gewichtete
+Ausgleichung</strong> (IRLS):</p>
+<ol>
+<li>normal ausgleichen,</li>
+<li>für jede Beobachtung die standardisierte Verbesserung <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>u</mi><mi>i</mi></msub><mo>&#x0003D;</mo><msub><mi>v</mi><mi>i</mi></msub><mo>&#x0002F;</mo><mo stretchy="false">&#x00028;</mo><msub><mi>&#x003C3;</mi><mi>i</mi></msub><msqrt><mrow><msub><mi>r</mi><mi>i</mi></msub></mrow></msqrt><mo stretchy="false">&#x00029;</mo></mrow></math> bilden,</li>
+<li>die Streuung robust schätzen: <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mover accent="true"><mi>&#x003C3;</mi><mo>&#x0005E;</mo></mover><mi>u</mi></msub><mo>&#x0003D;</mo><mo>max</mo><mo stretchy="true" fence="true" minsize="1.2em" maxsize="1.2em">(</mo><mn>1,4826</mn><mo>&#x000B7;</mo><mrow><mi mathvariant="normal">m</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">d</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">n</mi></mrow><mo stretchy="false">&#x0007C;</mo><msub><mi>u</mi><mi>i</mi></msub><mo stretchy="false">&#x0007C;</mo><mo>&#x0002C;</mo><mspace width="0.278em" /><mn>1</mn><mo stretchy="true" fence="true" minsize="1.2em" maxsize="1.2em">)</mo></mrow></math>,</li>
+<li>neue Gewichtsfaktoren <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>w</mi><mi>i</mi></msub><mo>&#x0003D;</mo><mi>w</mi><mo stretchy="false">&#x00028;</mo><msub><mi>u</mi><mi>i</mi></msub><mo>&#x0002F;</mo><msub><mover accent="true"><mi>&#x003C3;</mi><mo>&#x0005E;</mo></mover><mi>u</mi></msub><mo stretchy="false">&#x00029;</mo></mrow></math> berechnen: <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msubsup><mi>p</mi><mi>i</mi><mi>&#x02032;</mi></msubsup><mo>&#x0003D;</mo><msub><mi>w</mi><mi>i</mi></msub><mspace width="0.167em" /><msub><mi>p</mi><mi>i</mi></msub></mrow></math>,</li>
+<li>erneut ausgleichen, bis sich kein <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>w</mi><mi>i</mi></msub></mrow></math> mehr als 0,002 ändert (höchstens 40 Durchläufe).</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>Schätzer</th>
+<th>Gewichtsfunktion <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>w</mi><mo stretchy="false">&#x00028;</mo><mi>u</mi><mo stretchy="false">&#x00029;</mo></mrow></math> für <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x0007C;</mo><mi>u</mi><mo stretchy="false">&#x0007C;</mo><mo>&#x0003E;</mo><mi>k</mi></mrow></math> (sonst 1)</th>
+<th>Konstante <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>k</mi></mrow></math></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Huber</td>
+<td><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>k</mi><mo>&#x0002F;</mo><mo stretchy="false">&#x0007C;</mo><mi>u</mi><mo stretchy="false">&#x0007C;</mo></mrow></math></td>
+<td>1,5</td>
+</tr>
+<tr>
+<td>Dänische Methode (Krarup)</td>
+<td><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>exp</mi><mo stretchy="true" fence="true" minsize="1.2em" maxsize="1.2em">(</mo><mn>1</mn><mo>&#x02212;</mo><mo stretchy="false">&#x00028;</mo><mi>u</mi><mo>&#x0002F;</mo><mi>k</mi><msup><mo stretchy="false">&#x00029;</mo><mn>2</mn></msup><mo stretchy="true" fence="true" minsize="1.2em" maxsize="1.2em">)</mo></mrow></math></td>
+<td>2,0</td>
+</tr>
+<tr>
+<td>IGG-III (Yang)</td>
+<td><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mstyle displaystyle="true" scriptlevel="0"><mfrac><mrow><mi>k</mi></mrow><mrow><mo stretchy="false">&#x0007C;</mo><mi>u</mi><mo stretchy="false">&#x0007C;</mo></mrow></mfrac></mstyle><msup><mrow><mo stretchy="true" fence="true" form="prefix">&#x00028;</mo><mstyle displaystyle="true" scriptlevel="0"><mfrac><mrow><mn>3</mn><mi>k</mi><mo>&#x02212;</mo><mo stretchy="false">&#x0007C;</mo><mi>u</mi><mo stretchy="false">&#x0007C;</mo></mrow><mrow><mn>3</mn><mi>k</mi><mo>&#x02212;</mo><mi>k</mi></mrow></mfrac></mstyle><mo stretchy="true" fence="true" form="postfix">&#x00029;</mo></mrow><mn>2</mn></msup></mrow></math> für <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x0007C;</mo><mi>u</mi><mo stretchy="false">&#x0007C;</mo><mo>&#x02264;</mo><mn>3</mn><mi>k</mi></mrow></math>, sonst 0</td>
+<td>1,5</td>
+</tr>
+<tr>
+<td>Tukey (Biweight)</td>
+<td>0 (für <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x0007C;</mo><mi>u</mi><mo stretchy="false">&#x0007C;</mo><mo>&#x0003C;</mo><mi>k</mi></mrow></math>: <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>1</mn><mo>&#x02212;</mo><mo stretchy="false">&#x00028;</mo><mi>u</mi><mo>&#x0002F;</mo><mi>k</mi><msup><mo stretchy="false">&#x00029;</mo><mn>2</mn></msup><msup><mo stretchy="false">&#x00029;</mo><mn>2</mn></msup></mrow></math>)</td>
+<td>4,685</td>
+</tr>
+<tr>
+<td>L1-Norm</td>
+<td><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1</mn><mo>&#x0002F;</mo><mo>max</mo><mo stretchy="false">&#x00028;</mo><mo stretchy="false">&#x0007C;</mo><mi>u</mi><mo stretchy="false">&#x0007C;</mo><mo>&#x0002C;</mo><mn>0,05</mn><mo stretchy="false">&#x00029;</mo></mrow></math> (für alle <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>u</mi></mrow></math>)</td>
+<td>–</td>
+</tr>
+</tbody>
+</table>
+<p>Im Beispielprojekt (<em>Datei ▸ Beispielprojekt laden</em>) ist ein grober Richtungsfehler eingebaut. Alle fünf
+Schätzer finden ihn und geben ihm das kleinste Gewicht.</p>
+<div class="prof">
+<p>Huber und L1 sind konvexe M-Schätzer mit eindeutiger Lösung; die Dänische Methode,
+IGG-III und Tukey sind <em>redescending</em> – sie können grobe Fehler ganz ausschalten, haben aber mehrere lokale
+Minima. Ihr Ergebnis hängt vom Startwert ab, hier der L2-Lösung, die ein großer Fehler bereits verzerrt hat.
+Die Standardisierung mit <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msqrt><mrow><msub><mi>r</mi><mi>i</mi></msub></mrow></msqrt></mrow></math> ist wichtig: Ohne sie würden Beobachtungen mit kleinem
+Redundanzanteil, deren Fehler sich kaum in <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>v</mi><mi>i</mi></msub></mrow></math> zeigt, nie abgewertet. Gegen schlecht kontrollierte
+Beobachtungen (<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>r</mi><mi>i</mi></msub><mo>&#x02192;</mo><mn>0</mn></mrow></math>, Hebelpunkte) ist aber <strong>kein</strong> robuster Schätzer wirksam – der Bruchpunkt
+von M-Schätzern in der Regression ist in Bezug auf Hebelbeobachtungen null. Die Untergrenze 1 für
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mover accent="true"><mi>&#x003C3;</mi><mo>&#x0005E;</mo></mover><mi>u</mi></msub></mrow></math> verhindert, dass in kleinen, nahezu fehlerfreien Netzen reguläre Messungen abgewertet werden;
+sie bewirkt aber auch, dass bei insgesamt zu optimistischem stochastischem Modell (<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>s</mi><mn>0</mn></msub><mo>&#x0226B;</mo><mn>1</mn></mrow></math>) eher zu viele
+Beobachtungen abgewertet werden. Robuste Gewichte sind kein Ersatz für die Ursachenforschung: Abgewertete
+Messungen sollten im Feldbuch geprüft und dann bewusst gestrichen werden.</p>
+</div>
+<hr />
+<h2>11. Grenzwertprüfung vor der Ausgleichung</h2>
+<p>Vor der ersten Iteration vergleicht AUSGL-NT jede Beobachtung mit dem aus den Näherungskoordinaten
+gerechneten Wert. Ist der Widerspruch größer als der Grenzwert, wird die Beobachtung gestrichen und im
+Protokoll genannt (wie im Original WAUSGL):</p>
+<table>
+<thead>
+<tr>
+<th>Beobachtung</th>
+<th>Grenzwert (Voreinstellung)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Richtung, Zenitwinkel</td>
+<td>0,2 gon</td>
+</tr>
+<tr>
+<td>Strecke</td>
+<td>0,3 m</td>
+</tr>
+<tr>
+<td>Höhenunterschied</td>
+<td>0,5 m</td>
+</tr>
+</tbody>
+</table>
+<div class="prof">
+<p>Die Prüfung hängt von der Güte der Näherungskoordinaten ab. Wurde ein Neupunkt
+selbst aus einer fehlerhaften Messung bestimmt (z. B. polar mit falscher Strecke), sind die übrigen
+Messungen zu diesem Punkt „widersprüchlich“ und werden zu Unrecht gestrichen, während die eigentlich
+falsche Messung bleibt. Bei unerwartet vielen Streichungen daher die Näherungsbestimmung im Reiter <em>Daten</em>
+prüfen oder die Grenzwertprüfung abschalten und robust schätzen.</p>
+</div>
+<hr />
+<h2>12. Werkzeuge</h2>
+<h3>12.1 Satzmittel</h3>
+<p><em>Tools ▸ Satzmittelbildung</em> mittelt mehrere Sätze desselben Standpunkts. Innerhalb eines Satzes werden die
+beiden Fernrohrlagen gemittelt (Lage II erkennt das Programm an <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>z</mi><mo>&#x0003E;</mo><mn>200</mn></mrow></math> gon):</p>
+<p><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mi>H</mi><mi>z</mi><mo>&#x0003D;</mo><mi>H</mi><msub><mi>z</mi><mi>I</mi></msub><mo>&#x0002B;</mo><mfrac><mrow><mo stretchy="false">&#x00028;</mo><mi>H</mi><msub><mi>z</mi><mrow><mi>I</mi><mi>I</mi></mrow></msub><mo>&#x02212;</mo><mn>200</mn><mo stretchy="false">&#x00029;</mo><mo>&#x02212;</mo><mi>H</mi><msub><mi>z</mi><mi>I</mi></msub></mrow><mrow><mn>2</mn></mrow></mfrac><mo>&#x0002C;</mo><mspace width="2em" /><mi>z</mi><mo>&#x0003D;</mo><mfrac><mrow><msub><mi>z</mi><mi>I</mi></msub><mo>&#x0002B;</mo><mn>400</mn><mo>&#x02212;</mo><msub><mi>z</mi><mrow><mi>I</mi><mi>I</mi></mrow></msub></mrow><mrow><mn>2</mn></mrow></mfrac><mo>&#x0002C;</mo><mspace width="2em" /><mtext>Indexfehler</mtext><mo>&#x0003D;</mo><mfrac><mrow><msub><mi>z</mi><mi>I</mi></msub><mo>&#x0002B;</mo><msub><mi>z</mi><mrow><mi>I</mi><mi>I</mi></mrow></msub><mo>&#x02212;</mo><mn>400</mn></mrow><mrow><mn>2</mn></mrow></mfrac><mo>&#x0002E;</mo></mrow></math></p>
+<p>Danach wird jeder Satz um seine mittlere Abweichung gegenüber dem ersten Satz verschoben und das Mittel
+gebildet (Satzausgleichung).</p>
+<h3>12.2 Räumliche Helmert-Transformation</h3>
+<p><em>Tools ▸ Transformation</em> bestimmt aus mindestens drei identischen Punkten die Transformation</p>
+<p><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><msub><mi>&#x1D431;</mi><mi>B</mi></msub><mo>&#x0003D;</mo><mi>&#x1D41C;</mi><mo>&#x0002B;</mo><mi>m</mi><mspace width="0.167em" /><mi>&#x1D411;</mi><mspace width="0.167em" /><msub><mi>&#x1D431;</mi><mi>A</mi></msub></mrow></math></p>
+<p>mit Verschiebung <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>&#x1D41C;</mi></mrow></math>, Drehmatrix <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>&#x1D411;</mi></mrow></math> und – wahlweise – Maßstab <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>m</mi></mrow></math> (7 bzw. 6 Parameter).
+Die Drehung wird geschlossen über Quaternionen nach Horn berechnet: Man reduziert beide Punktgruppen auf ihre
+Schwerpunkte, bildet die Kreuzkovarianzmatrix und nimmt den Eigenvektor zum größten Eigenwert einer daraus
+gebildeten symmetrischen <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>4</mn><mo>&#x000D7;</mo><mn>4</mn></mrow></math>-Matrix als Drehquaternion.</p>
+<div class="prof">
+<p>Die geschlossene Lösung minimiert die ungewichtete Quadratsumme der Restklaffen;
+unterschiedliche Genauigkeiten der identischen Punkte (etwa Lage besser als Höhe) werden nicht
+berücksichtigt. Bei nahezu kollinearen identischen Punkten ist die Drehung um die Verbindungsachse
+unbestimmt – der zweitgrößte Eigenwert liegt dann nahe am größten. Fehlt die Höhe in den Punktdateien, setzt
+das Werkzeug sie auf 0; eine 3D-Transformation ebener Koordinaten ist dann formal möglich, aber sinnlos.</p>
+</div>
+<hr />
+<h2>13. Bedienung: Messdaten-Editor und Ausgaben</h2>
+<ul>
+<li><strong>Anklicken im Netzbild:</strong> Eine Linie öffnet rechts die Tabelle <em>Messungen</em> und markiert alle zugehörigen
+  Zeilen (beide Richtungen, Strecken, Höhenunterschiede); ein Punkt öffnet die Tabelle <em>Punkte</em>.</li>
+<li><strong>Bearbeiten:</strong> Werte direkt ändern; Schalter <strong>R S H</strong> streichen einzelne Beobachtungen; Punktart mit
+  <strong>F L H N</strong> festlegen. Liegt schon ein Ergebnis vor, wird sofort neu gerechnet.</li>
+<li><strong>Speichern:</strong> als Netzdatei; die vorige Fassung bleibt als <code>*.net.bak</code> erhalten.</li>
+<li><strong>Protokoll:</strong> RTF im Format A4 quer (in <em>Datei ▸ Voreinstellungen</em> auf Hochformat umstellbar).
+  Am besten mit Word oder LibreOffice öffnen; WordPad ignoriert das Papierformat.</li>
+<li><strong>Netzbild:</strong> PDF und DXF mit Fehlerellipsen; Ellipsenmaßstab automatisch oder fest.</li>
+</ul>
+<hr />
+<h2>14. Quellen</h2>
+<p><strong>Lehrbücher</strong></p>
+<ul>
+<li>Niemeier, W. (2008): <em>Ausgleichungsrechnung – Statistische Auswertemethoden</em>. 2. Auflage, de Gruyter, Berlin.</li>
+<li>Jäger, R.; Müller, T.; Saler, H.; Schwäble, R. (2005): <em>Klassische und robuste Ausgleichungsverfahren</em>.
+  Wichmann, Heidelberg.</li>
+<li>Ghilani, C. D. (2017): <em>Adjustment Computations – Spatial Data Analysis</em>. 6. Auflage, Wiley, Hoboken.</li>
+</ul>
+<p><strong>Originalarbeiten</strong></p>
+<ul>
+<li>Baarda, W. (1968): <em>A Testing Procedure for Use in Geodetic Networks</em>. Netherlands Geodetic Commission,
+  Publications on Geodesy, New Series, Vol. 2, No. 5, Delft.</li>
+<li>Huber, P. J. (1964): Robust Estimation of a Location Parameter. <em>Annals of Mathematical Statistics</em> 35(1),
+  73–101. <a href="https://doi.org/10.1214/aoms/1177703732">https://doi.org/10.1214/aoms/1177703732</a></li>
+<li>Krarup, T.; Juhl, J.; Kubik, K. (1980): Götterdämmerung over Least Squares Adjustment. <em>Proceedings of the
+  14th Congress of the International Society of Photogrammetry</em>, Hamburg.</li>
+<li>Horn, B. K. P. (1987): Closed-form solution of absolute orientation using unit quaternions. <em>Journal of the
+  Optical Society of America A</em> 4(4), 629–642. <a href="https://doi.org/10.1364/JOSAA.4.000629">https://doi.org/10.1364/JOSAA.4.000629</a></li>
+<li>Wilson, E. B.; Hilferty, M. M. (1931): The Distribution of Chi-Square. <em>Proceedings of the National Academy
+  of Sciences</em> 17(12), 684–688. <a href="https://doi.org/10.1073/pnas.17.12.684">https://doi.org/10.1073/pnas.17.12.684</a></li>
+<li>Yang, Y. (1994): Robust estimation for dependent observations. <em>manuscripta geodaetica</em> 19, 10–17
+  (Grundlage des IGG-III-Schemas).</li>
+</ul>
+<p><strong>Nachschlagen im Netz</strong></p>
+<ul>
+<li>Methode der kleinsten Quadrate: <a href="https://de.wikipedia.org/wiki/Methode_der_kleinsten_Quadrate">https://de.wikipedia.org/wiki/Methode_der_kleinsten_Quadrate</a></li>
+<li>Ausgleichungsrechnung: <a href="https://de.wikipedia.org/wiki/Ausgleichungsrechnung">https://de.wikipedia.org/wiki/Ausgleichungsrechnung</a></li>
+<li>Gauß-Newton-Verfahren: <a href="https://de.wikipedia.org/wiki/Gau%C3%9F-Newton-Verfahren">https://de.wikipedia.org/wiki/Gau%C3%9F-Newton-Verfahren</a></li>
+<li>Cholesky-Zerlegung: <a href="https://de.wikipedia.org/wiki/Cholesky-Zerlegung">https://de.wikipedia.org/wiki/Cholesky-Zerlegung</a></li>
+<li>QR-Zerlegung: <a href="https://de.wikipedia.org/wiki/QR-Zerlegung">https://de.wikipedia.org/wiki/QR-Zerlegung</a></li>
+<li>Singulärwertzerlegung: <a href="https://de.wikipedia.org/wiki/Singul%C3%A4rwertzerlegung">https://de.wikipedia.org/wiki/Singul%C3%A4rwertzerlegung</a></li>
+<li>Chi-Quadrat-Verteilung: <a href="https://de.wikipedia.org/wiki/Chi-Quadrat-Verteilung">https://de.wikipedia.org/wiki/Chi-Quadrat-Verteilung</a></li>
+<li>Helmert-Transformation: <a href="https://de.wikipedia.org/wiki/Helmert-Transformation">https://de.wikipedia.org/wiki/Helmert-Transformation</a></li>
+<li>Freie Stationierung: <a href="https://de.wikipedia.org/wiki/Freie_Stationierung">https://de.wikipedia.org/wiki/Freie_Stationierung</a></li>
+<li>M-Schätzer: <a href="https://en.wikipedia.org/wiki/M-estimator">https://en.wikipedia.org/wiki/M-estimator</a></li>
+<li>Iterativ neu gewichtete kleinste Quadrate: <a href="https://en.wikipedia.org/wiki/Iteratively_reweighted_least_squares">https://en.wikipedia.org/wiki/Iteratively_reweighted_least_squares</a></li>
+<li>Median der absoluten Abweichungen (MAD): <a href="https://en.wikipedia.org/wiki/Median_absolute_deviation">https://en.wikipedia.org/wiki/Median_absolute_deviation</a></li>
+</ul>
+<p><strong>AUSGL-NT selbst</strong></p>
+<ul>
+<li>Rechenregeln und Konstanten aus dem Original WAUSGL/AUSGL (dekompiliert und mit dem Pascal-Quelltext
+  abgeglichen): <a href="https://github.com/Jgerner01/ausgl-nt-rust/blob/main/MECHANICS.md">https://github.com/Jgerner01/ausgl-nt-rust/blob/main/MECHANICS.md</a></li>
+<li>Quelltext: <a href="https://github.com/Jgerner01/ausgl-nt-rust">https://github.com/Jgerner01/ausgl-nt-rust</a></li>
+</ul>
+<hr />
+<p><em>Dank an </em><em>Prof. Fritz Wimbauer</em><em> und Prof. Dr.-Ing. Peter Wasmeier.</em></p>
+</main>
+<script>
+const k = document.getElementById('prof');
+const setze = () => document.body.classList.toggle('ohne-prof', !k.checked);
+k.addEventListener('change', setze); setze();
+</script>
+</body>
+</html>

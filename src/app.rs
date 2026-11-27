@@ -15,6 +15,10 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
+mod editor;
+mod prefs;
+use editor::{is_netfile, EditorState, NET_F};
+
 const ACCENT: Color32 = Color32::from_rgb(37, 99, 235);
 const BORDER: Color32 = Color32::from_rgb(226, 232, 240);
 const MUTED: Color32 = Color32::from_rgb(100, 116, 139);
@@ -23,6 +27,8 @@ const WARN: Color32 = Color32::from_rgb(217, 119, 6);
 const GOOD: Color32 = Color32::from_rgb(22, 163, 74);
 const INK: Color32 = Color32::from_rgb(15, 23, 42);
 const PX_MM: f32 = 3.78;
+/// Breite des Fensters „Über AUSGL-NT“ [Punkte]
+const ABOUT_BREITE: f32 = 440.0;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Tab {
@@ -33,17 +39,33 @@ enum Tab {
     Daten,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
 struct SysParams {
     firmenkopf: Vec<String>,
     last_project: String,
     last_dir: String,
+    /// Protokoll (RTF) im Querformat A4
+    rtf_landscape: bool,
+    /// gespeicherte Dateien (Protokoll, PDF, DXF) gleich öffnen
+    open_after: bool,
+    /// Protokolle mit Word bzw. LibreOffice öffnen statt mit dem Standardprogramm (WordPad ignoriert das Querformat)
+    rtf_word: bool,
+    /// Standardwerte für neue Projekte
+    defaults: adjust::Settings,
 }
 
 impl Default for SysParams {
     fn default() -> Self {
-        SysParams { firmenkopf: vec!["Vermessungsbüro Muster".into(), "Musterstraße 1 · 12345 Musterstadt".into(), String::new(), String::new()], last_project: String::new(), last_dir: String::new() }
+        SysParams {
+            firmenkopf: vec!["Vermessungsbüro Muster".into(), "Musterstraße 1 · 12345 Musterstadt".into(), String::new(), String::new()],
+            last_project: String::new(),
+            last_dir: String::new(),
+            rtf_landscape: true,
+            open_after: true,
+            rtf_word: true,
+            defaults: adjust::Settings::default(),
+        }
     }
 }
 
@@ -56,6 +78,10 @@ struct Cam {
     cx: f64,
     ppm: f64,
     fitted: bool,
+    /// Größe der Zeichenfläche beim letzten Einpassen
+    fit_size: Vec2,
+    /// vom Benutzer verschoben oder gezoomt – dann bei Größenänderung nicht neu einpassen
+    touched: bool,
 }
 
 pub struct AusglApp {
@@ -68,6 +94,16 @@ pub struct AusglApp {
     setups: Vec<Setup>,
     niv: Vec<NivLine>,
     raw: [String; 3],
+    /// Hinweise beim Einlesen (z. B. CAPLAN: übergangene Abschnitte)
+    import_notes: Vec<String>,
+    /// Näherungskoordinaten aus Netz- bzw. CAPLAN-Datei
+    approx: Vec<KorPoint>,
+    /// Punkte mit fester Höhe ohne feste Lage
+    hfix: Vec<String>,
+    /// Messdaten-Editor (rechte Fensterhälfte)
+    editor: EditorState,
+    /// Daten im Editor geändert, aber noch nicht gespeichert
+    data_dirty: bool,
     approx_pm: PointMap,
     outcome: Option<Outcome>,
     doc: Option<Doc>,
@@ -86,6 +122,8 @@ pub struct AusglApp {
     sort_nv: bool,
     dlg_project: bool,
     dlg_params: bool,
+    /// Voreinstellungen in Bearbeitung (erst „Speichern“ übernimmt sie)
+    pref_edit: Option<SysParams>,
     dlg_pdf: bool,
     dlg_dxf: bool,
     dlg_satz: bool,
@@ -95,7 +133,6 @@ pub struct AusglApp {
     updater: crate::update::Updater,
     pdf_opts: PlotOptions,
     pdf_auto: bool,
-    open_after: bool,
     dxf_n: f64,
     dxf_grid: bool,
     satz_file: String,
@@ -110,7 +147,41 @@ pub struct AusglApp {
     shot: Arc<Mutex<Option<Arc<egui::ColorImage>>>>,
 }
 
+/// Name der Schriftfamilie mit echtem Fettschnitt (egui bringt keinen mit)
+const FETT: &str = "Fett";
+/// Fettschnitt geladen – nur dann darf die Familie verwendet werden
+static FETT_OK: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+
+/// Fettschnitt aus den Windows-Schriften laden (Segoe UI Bold, sonst Arial Bold)
+fn load_bold_font(ctx: &egui::Context) {
+    let dir = std::env::var_os("WINDIR").map(PathBuf::from).unwrap_or_else(|| PathBuf::from(r"C:\Windows")).join("Fonts");
+    let bytes = ["segoeuib.ttf", "arialbd.ttf"].iter().find_map(|f| std::fs::read(dir.join(f)).ok());
+    let Some(bytes) = bytes else {
+        let _ = FETT_OK.set(false);
+        return;
+    };
+    let mut fonts = egui::FontDefinitions::default();
+    fonts.font_data.insert(FETT.into(), Arc::new(egui::FontData::from_owned(bytes)));
+    // fehlende Zeichen (Symbole) aus den Standardschriften
+    let mut fam = vec![FETT.to_string()];
+    fam.extend(fonts.families.get(&egui::FontFamily::Proportional).cloned().unwrap_or_default());
+    fonts.families.insert(egui::FontFamily::Name(FETT.into()), fam);
+    ctx.set_fonts(fonts);
+    let _ = FETT_OK.set(true);
+}
+
+/// Text im echten Fettschnitt (Ersatz: hervorgehoben, wenn die Schrift fehlt)
+fn bold(text: impl Into<String>) -> RichText {
+    let t = RichText::new(text.into());
+    if *FETT_OK.get().unwrap_or(&false) {
+        t.family(egui::FontFamily::Name(FETT.into())).color(INK)
+    } else {
+        t.strong()
+    }
+}
+
 fn setup_style(ctx: &egui::Context) {
+    load_bold_font(ctx);
     let mut v = egui::Visuals::light();
     v.panel_fill = Color32::from_rgb(244, 246, 250);
     v.window_fill = Color32::WHITE;
@@ -181,6 +252,54 @@ fn save_dialog(title: &str, name: &str, filters: &[(&str, &[&str])], dir: &str) 
     d.save_file()
 }
 
+/// Meßdatei ist ein CAPLAN-Datensatz (*.N)
+fn is_caplan(f: &str) -> bool {
+    Path::new(f.trim()).extension().map_or(false, |e| e.eq_ignore_ascii_case("n"))
+}
+
+/// Anleitungen (erzeugt aus docs/*.md mit tools/Doku-HTML.py), in die EXE eingebettet
+const KURZANLEITUNG_HTML: &str = include_str!("../docs/Kurzanleitung.html");
+const HANDBUCH_HTML: &str = include_str!("../docs/Handbuch.html");
+
+/// Protokoll (RTF) öffnen – bevorzugt mit Word bzw. LibreOffice, da WordPad Papier- und Querformat ignoriert
+fn open_rtf(p: &Path, prefer_word: bool) {
+    #[cfg(windows)]
+    if prefer_word {
+        for exe in ["Winword.exe", "soffice.exe"] {
+            if let Some(prog) = app_path(exe) {
+                if std::process::Command::new(prog).arg(p).spawn().is_ok() {
+                    return;
+                }
+            }
+        }
+    }
+    let _ = prefer_word;
+    open_file(p);
+}
+
+/// Programmpfad aus der Windows-Registry (App Paths)
+#[cfg(windows)]
+fn app_path(exe: &str) -> Option<PathBuf> {
+    use std::os::windows::process::CommandExt;
+    /// kein Konsolenfenster für reg.exe
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    for root in ["HKLM", "HKCU"] {
+        let key = format!(r"{}\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\{}", root, exe);
+        let Ok(out) = std::process::Command::new("reg").args(["query", &key, "/ve"]).creation_flags(CREATE_NO_WINDOW).output() else { continue };
+        let text = String::from_utf8_lossy(&out.stdout);
+        for line in text.lines() {
+            if let Some(i) = line.find("REG_") {
+                let rest = line[i..].split_once(char::is_whitespace).map(|(_, r)| r.trim().trim_matches('"')).unwrap_or("");
+                let path = PathBuf::from(rest);
+                if path.is_file() {
+                    return Some(path);
+                }
+            }
+        }
+    }
+    None
+}
+
 fn open_file(p: &Path) {
     #[cfg(windows)]
     {
@@ -193,8 +312,9 @@ fn open_file(p: &Path) {
 }
 
 const KOR_F: &[(&str, &[&str])] = &[("Koordinaten", &["kor", "KOR", "kon", "KON", "txt"]), ("Alle Dateien", &["*"])];
-const DAT_F: &[(&str, &[&str])] = &[("Meßdaten", &["dat", "DAT", "dam", "DAM", "txt"]), ("Alle Dateien", &["*"])];
-const PRJ_F: &[(&str, &[&str])] = &[("AUSGL-NT-Projekt", &["ausgl"]), ("WAUSGL-Projekt", &["prj", "PRJ"])];
+const DAT_F: &[(&str, &[&str])] = &[("Meßdaten", &["dat", "DAT", "dam", "DAM", "txt"]), ("CAPLAN-Datensatz", &["n", "N"]), ("AUSGL-NT-Netzdatei", &["net", "NET"]), ("Alle Dateien", &["*"])];
+const PRJ_F: &[(&str, &[&str])] = &[("AUSGL-NT-Projekt", &["ausgl"]), ("WAUSGL-Projekt", &["prj", "PRJ"]), ("CAPLAN-Datensatz", &["n", "N"]), ("AUSGL-NT-Netzdatei", &["net", "NET"])];
+const CAPLAN_F: &[(&str, &[&str])] = &[("CAPLAN-Datensatz", &["n", "N"])];
 
 impl AusglApp {
     pub fn new(cc: &eframe::CreationContext<'_>, screenshot: Option<PathBuf>, open: Option<PathBuf>) -> Self {
@@ -207,6 +327,11 @@ impl AusglApp {
             kor: vec![],
             lagekor: vec![],
             kon: vec![],
+            import_notes: vec![],
+            approx: vec![],
+            hfix: vec![],
+            editor: EditorState::default(),
+            data_dirty: false,
             setups: vec![],
             niv: vec![],
             raw: Default::default(),
@@ -217,7 +342,7 @@ impl AusglApp {
             view: NetView::default(),
             style: Style::default(),
             show_grid: true,
-            cam: Cam { cy: 0.0, cx: 0.0, ppm: 1.0, fitted: false },
+            cam: Cam { cy: 0.0, cx: 0.0, ppm: 1.0, fitted: false, fit_size: Vec2::ZERO, touched: false },
             tab: Tab::Netz,
             data_tab: 0,
             sys,
@@ -228,6 +353,7 @@ impl AusglApp {
             sort_nv: false,
             dlg_project: false,
             dlg_params: false,
+            pref_edit: None,
             dlg_pdf: false,
             dlg_dxf: false,
             dlg_satz: false,
@@ -237,7 +363,6 @@ impl AusglApp {
             updater: crate::update::Updater::default(),
             pdf_opts: PlotOptions::default(),
             pdf_auto: true,
-            open_after: true,
             dxf_n: 1000.0,
             dxf_grid: true,
             satz_file: String::new(),
@@ -254,7 +379,11 @@ impl AusglApp {
         if screenshot.is_none() {
             app.updater.search_quietly(&cc.egui_ctx);
         }
-        if screenshot.is_some() {
+        if let (Some(_), Some(p)) = (&screenshot, &open) {
+            // Bildschirmfoto einer bestimmten Datei (Prüfung): öffnen und rechnen
+            app.open_any(p);
+            app.run();
+        } else if screenshot.is_some() {
             app.load_sample();
             app.proj.kind = NetKind::Raum3D;
             app.proj.settings.robust = Robust::Huber;
@@ -311,6 +440,8 @@ impl AusglApp {
         self.niv = s.niv;
         self.lagekor.clear();
         self.kon.clear();
+        self.approx.clear();
+        self.hfix.clear();
         self.proj_path = None;
         self.sample_mode = true;
         self.after_load();
@@ -318,6 +449,10 @@ impl AusglApp {
     }
 
     fn after_load(&mut self) {
+        if !(is_caplan(&self.proj.mes) || is_netfile(&self.proj.mes)) || self.sample_mode {
+            self.import_notes.clear();
+        }
+        self.data_dirty = false;
         self.outcome = None;
         self.doc = None;
         self.error = None;
@@ -326,7 +461,7 @@ impl AusglApp {
     }
 
     fn refresh_preview(&mut self) {
-        let inp = Input { kind: self.proj.kind, kor: &self.kor, lagekor: &self.lagekor, kon: &self.kon, setups: &self.setups, niv: &self.niv, disabled: &self.proj.disabled };
+        let inp = Input { kind: self.proj.kind, kor: &self.kor, lagekor: &self.lagekor, kon: &self.kon, approx: &self.approx, hfix: &self.hfix, setups: &self.setups, niv: &self.niv, disabled: &self.proj.disabled };
         let mut log = Vec::new();
         let pm = adjust::build_points(&inp, &self.proj.settings, true, true, &mut log);
         self.view = NetView::from_data(&self.kor, &pm, &self.setups, &self.niv, self.proj.kind.uses_tachy());
@@ -345,6 +480,16 @@ impl AusglApp {
             self.after_load();
             return;
         }
+        if is_caplan(&self.proj.mes) {
+            self.load_caplan();
+            return;
+        }
+        if is_netfile(&self.proj.mes) {
+            self.load_netfile();
+            return;
+        }
+        self.approx.clear();
+        self.hfix.clear();
         let mut errs = Vec::new();
         let kor = self.read_list(&self.proj.kor);
         let mes = self.read_list(&self.proj.mes);
@@ -390,10 +535,60 @@ impl AusglApp {
         };
     }
 
+    /// Meßdaten aus einem CAPLAN-Datensatz (*.N): Fest-, Näherungspunkte und Beobachtungen in einer Datei
+    fn load_caplan(&mut self) -> Option<crate::caplan::CaplanData> {
+        match self.read_list(&self.proj.mes) {
+            Ok(Some(t)) => {
+                let d = crate::caplan::parse(&t);
+                self.kor = d.fixed.clone();
+                self.approx = d.approx.clone();
+                self.hfix = d.hfix.clone();
+                self.kon.clear();
+                self.setups = d.setups.clone();
+                self.niv = d.niv.clone();
+                self.lagekor.clear();
+                self.raw = [io::write_kor(&d.fixed, self.proj.settings.nk), t, String::new()];
+                self.import_notes = d.notes.clone();
+                self.after_load();
+                self.status = format!("CAPLAN-Datensatz eingelesen: {}.", d.summary());
+                Some(d)
+            }
+            Ok(None) => None,
+            Err(e) => {
+                self.status = format!("Fehler beim Einlesen: {}", e);
+                None
+            }
+        }
+    }
+
+    /// CAPLAN-Datensatz (*.N) als neues Projekt übernehmen
+    fn import_caplan(&mut self, p: &Path) {
+        let stem = p.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+        self.proj = ProjectFile { name: stem, mes: p.to_string_lossy().to_string(), settings: self.default_settings(), ..Default::default() };
+        self.proj_path = None;
+        self.sample_mode = false;
+        self.sys.last_dir = p.parent().map(|d| d.to_string_lossy().to_string()).unwrap_or_default();
+        self.save_sys();
+        let Some(d) = self.load_caplan() else { return };
+        self.proj.beschreibung = if d.title.is_empty() { "Import aus CAPLAN".into() } else { d.title.clone() };
+        self.proj.kind = d.kind();
+        self.proj.settings.variant = d.variant();
+        self.refresh_preview();
+        let mut msg = format!("CAPLAN-Datensatz {} importiert ({}, {}). Als *.ausgl speichern, um das Projekt zu behalten.", p.display(), self.proj.kind.label(), d.summary());
+        if !d.notes.is_empty() {
+            msg += &format!(" Hinweise: {}", d.notes.join(" "));
+        }
+        self.status = msg;
+    }
+
     fn open_any(&mut self, p: &Path) {
         let ext = p.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
         if ext == "prj" {
             self.import_prj(p);
+        } else if ext == "n" {
+            self.import_caplan(p);
+        } else if ext == "net" {
+            self.import_netfile(p);
         } else {
             self.open_project(p);
         }
@@ -420,6 +615,7 @@ impl AusglApp {
                 if pf.name.is_empty() {
                     pf.name = p.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
                 }
+                pf.settings = self.default_settings();
                 self.proj = pf;
                 self.proj_path = None;
                 self.sample_mode = false;
@@ -468,7 +664,7 @@ impl AusglApp {
 
     fn run(&mut self) {
         self.dirty_settings = false;
-        let inp = Input { kind: self.proj.kind, kor: &self.kor, lagekor: &self.lagekor, kon: &self.kon, setups: &self.setups, niv: &self.niv, disabled: &self.proj.disabled };
+        let inp = Input { kind: self.proj.kind, kor: &self.kor, lagekor: &self.lagekor, kon: &self.kon, approx: &self.approx, hfix: &self.hfix, setups: &self.setups, niv: &self.niv, disabled: &self.proj.disabled };
         let t0 = std::time::Instant::now();
         let res = adjust::run(&inp, &self.proj.settings);
         match res {
@@ -551,11 +747,11 @@ impl AusglApp {
             return;
         };
         if let Some(path) = save_dialog("Protokoll als RTF speichern", &format!("{}_protokoll.rtf", self.proj.name), &[("Rich Text", &["rtf"])], &self.dir_str()) {
-            match std::fs::write(&path, crate::rtf::to_rtf(doc, true)) {
+            match std::fs::write(&path, crate::rtf::to_rtf(doc, self.sys.rtf_landscape)) {
                 Ok(_) => {
                     self.status = format!("Protokoll gespeichert: {}", path.display());
-                    if self.open_after {
-                        open_file(&path);
+                    if self.sys.open_after {
+                        open_rtf(&path, self.sys.rtf_word);
                     }
                 }
                 Err(e) => self.status = format!("Fehler: {}", e),
@@ -605,7 +801,7 @@ impl AusglApp {
             match std::fs::write(&path, bytes) {
                 Ok(_) => {
                     self.status = format!("PDF gespeichert (Maßstab 1:{}): {}", scene::trim(n), path.display());
-                    if self.open_after {
+                    if self.sys.open_after {
                         open_file(&path);
                     }
                 }
@@ -625,7 +821,7 @@ impl AusglApp {
     }
 
     fn new_project(&mut self) {
-        self.proj = ProjectFile { name: "Neues Projekt".into(), ..Default::default() };
+        self.proj = ProjectFile { name: "Neues Projekt".into(), settings: self.default_settings(), ..Default::default() };
         self.proj_path = None;
         self.sample_mode = false;
         self.kor.clear();
@@ -633,6 +829,8 @@ impl AusglApp {
         self.niv.clear();
         self.lagekor.clear();
         self.kon.clear();
+        self.approx.clear();
+        self.hfix.clear();
         self.raw = Default::default();
         self.after_load();
         self.dlg_project = true;
@@ -659,6 +857,18 @@ impl AusglApp {
                         self.import_prj(&p);
                     }
                 }
+                if ui.button("Netzdatei (*.NET) öffnen…").clicked() {
+                    ui.close();
+                    if let Some(p) = pick("Netzdatei öffnen", NET_F, &self.dir_str()) {
+                        self.import_netfile(&p);
+                    }
+                }
+                if ui.button("CAPLAN-Datensatz (*.N) importieren…").clicked() {
+                    ui.close();
+                    if let Some(p) = pick("CAPLAN-Datensatz importieren", CAPLAN_F, &self.dir_str()) {
+                        self.import_caplan(&p);
+                    }
+                }
                 if ui.button("Projekt speichern").clicked() {
                     ui.close();
                     self.save_project(false);
@@ -671,6 +881,14 @@ impl AusglApp {
                 if ui.button("Projektbeschrieb…").clicked() {
                     self.dlg_project = true;
                     ui.close();
+                }
+                if ui.button("Messdaten-Tabelle öffnen").clicked() {
+                    self.editor.open = true;
+                    ui.close();
+                }
+                if ui.button("Messdaten als Netzdatei (*.NET) speichern…").clicked() {
+                    ui.close();
+                    self.save_netfile(true);
                 }
                 if ui.button("Daten neu einlesen").clicked() {
                     self.load_data();
@@ -802,9 +1020,18 @@ impl AusglApp {
                     self.save_kon();
                 }
                 ui.separator();
-                ui.checkbox(&mut self.open_after, "Datei nach dem Speichern öffnen");
+                ui.checkbox(&mut self.sys.open_after, "Datei nach dem Speichern öffnen");
             });
             ui.menu_button("Hilfe", |ui| {
+                if ui.button("Kurzanleitung").clicked() {
+                    ui.close();
+                    self.open_doc("Kurzanleitung", KURZANLEITUNG_HTML);
+                }
+                if ui.button("Handbuch (Formeln, Beispiele, Professor-Modus)").clicked() {
+                    ui.close();
+                    self.open_doc("Handbuch", HANDBUCH_HTML);
+                }
+                ui.separator();
                 if ui.button("Arbeitsweise und Dateiformate").clicked() {
                     self.dlg_help = true;
                     ui.close();
@@ -1128,6 +1355,8 @@ impl AusglApp {
             let h = (bb[3] - bb[1]).max(1e-3);
             self.cam.ppm = ((rect.width() as f64 - 80.0) / w).min((rect.height() as f64 - 80.0) / h).max(1e-6);
             self.cam.fitted = true;
+            self.cam.fit_size = rect.size();
+            self.cam.touched = false;
         }
     }
 
@@ -1160,8 +1389,12 @@ impl AusglApp {
             if ui.button("Einpassen").clicked() {
                 self.cam.fitted = false;
             }
+            ui.separator();
+            ui.toggle_value(&mut self.editor.open, "✏ Messdaten").on_hover_text("Tabelle der Messungen und Punkte rechts einblenden – oder Linie/Punkt im Netzbild anklicken");
         });
-        let (resp, painter) = ui.allocate_painter(ui.available_size(), Sense::click_and_drag());
+        // nie breiter als die sichtbare Fläche (sonst wird beim Einpassen falsch zentriert)
+        let size = Vec2::new(ui.available_width().min(ui.max_rect().width()), ui.available_height());
+        let (resp, painter) = ui.allocate_painter(size, Sense::click_and_drag());
         let rect = resp.rect;
         painter.rect_filled(rect, 8, Color32::WHITE);
         painter.rect_stroke(rect, 8, Stroke::new(1.0, BORDER), egui::StrokeKind::Inside);
@@ -1170,10 +1403,12 @@ impl AusglApp {
             painter.text(rect.center() + Vec2::new(0.0, 14.0), Align2::CENTER_CENTER, "Datei ▸ Projekt öffnen … oder Datei ▸ Beispielprojekt laden", FontId::proportional(14.0), MUTED);
             return;
         }
-        if !self.cam.fitted {
+        // Fläche geändert (Tabelle ein/aus, Fenstergröße) und nicht selbst verschoben: neu einpassen
+        if !self.cam.fitted || (!self.cam.touched && (rect.size() - self.cam.fit_size).length() > 1.0) {
             self.fit(rect);
         }
         if resp.dragged() {
+            self.cam.touched = true;
             let d = resp.drag_delta();
             self.cam.cy -= d.x as f64 / self.cam.ppm;
             self.cam.cx += d.y as f64 / self.cam.ppm;
@@ -1182,6 +1417,7 @@ impl AusglApp {
             let (scroll, zoom) = ui.input(|i| (i.smooth_scroll_delta.y, i.zoom_delta()));
             let f = (scroll as f64 / 300.0).exp() * zoom as f64;
             if (f - 1.0).abs() > 1e-6 {
+                self.cam.touched = true;
                 let wy = self.cam.cy + (hp.x - rect.center().x) as f64 / self.cam.ppm;
                 let wx = self.cam.cx - (hp.y - rect.center().y) as f64 / self.cam.ppm;
                 self.cam.ppm = (self.cam.ppm * f).clamp(1e-6, 1e6);
@@ -1213,6 +1449,11 @@ impl AusglApp {
                 painter.line_segment([Pos2::new(rect.left(), a.y), Pos2::new(rect.right(), a.y)], gs);
                 painter.text(Pos2::new(rect.left() + 4.0, a.y - 2.0), Align2::LEFT_BOTTOM, scene::trim(x), FontId::proportional(10.0), gt);
                 x += step;
+            }
+        }
+        if resp.clicked() {
+            if let Some(hp) = resp.interact_pointer_pos() {
+                self.pick_at(hp, &to);
             }
         }
         let items = scene::build(&self.view, &self.style);
@@ -1285,6 +1526,7 @@ impl AusglApp {
                 }
             }
         }
+        self.draw_selection(&painter, &to);
         // Nordpfeil
         let ne = Pos2::new(rect.right() - 30.0, rect.top() + 40.0);
         let dark = Color32::from_rgb(40, 40, 40);
@@ -1630,7 +1872,14 @@ impl AusglApp {
 
     fn data_view(&mut self, ui: &mut Ui) {
         ui.horizontal(|ui| {
-            for (i, t) in ["Altpunkte (KOR)", "Tachymeter (DAT)", "Nivellement", "Näherungswerte"].iter().enumerate() {
+            let mes = if is_caplan(&self.proj.mes) {
+                "CAPLAN (*.N)"
+            } else if is_netfile(&self.proj.mes) {
+                "Netzdatei (*.NET)"
+            } else {
+                "Tachymeter (DAT)"
+            };
+            for (i, t) in ["Altpunkte (KOR)", mes, "Nivellement", "Näherungswerte"].iter().enumerate() {
                 if ui.selectable_label(self.data_tab == i, *t).clicked() {
                     self.data_tab = i;
                 }
@@ -1638,6 +1887,11 @@ impl AusglApp {
         });
         egui::ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
             if self.data_tab < 3 {
+                if self.data_tab == 1 {
+                    for n in &self.import_notes {
+                        ui.label(RichText::new(format!("⚠ {}", n)).color(Color32::from_rgb(180, 110, 0)));
+                    }
+                }
                 let mut t = self.raw[self.data_tab].as_str();
                 if t.is_empty() {
                     ui.label(RichText::new("keine Datei").color(MUTED));
@@ -1741,31 +1995,7 @@ impl AusglApp {
             }
             self.dlg_project &= open;
         }
-        if self.dlg_params {
-            let mut open = true;
-            let mut apply = false;
-            egui::Window::new("Voreinstellungen").open(&mut open).default_width(460.0).show(ctx, |ui| {
-                ui.label(RichText::new("Firmenkopf (Protokollkopf)").strong());
-                while self.sys.firmenkopf.len() < 4 {
-                    self.sys.firmenkopf.push(String::new());
-                }
-                for l in self.sys.firmenkopf.iter_mut().take(4) {
-                    ui.add(egui::TextEdit::singleline(l).desired_width(420.0));
-                }
-                ui.add_space(6.0);
-                ui.label(RichText::new("Genauigkeiten, Grenzwerte und Nachkommastellen stehen in der Seitenleiste und werden mit dem Projekt gespeichert.").small().color(MUTED));
-                if ui.button("Übernehmen").clicked() {
-                    apply = true;
-                }
-            });
-            if apply || !open {
-                self.save_sys();
-                if let Some(out) = &self.outcome {
-                    self.doc = Some(report::adjustment_doc(out, &self.proj.settings, &self.proj, &self.sys.firmenkopf));
-                }
-            }
-            self.dlg_params &= open;
-        }
+        self.prefs_dialog(ctx);
         if self.dlg_pdf {
             let mut open = true;
             let mut go = false;
@@ -1803,7 +2033,7 @@ impl AusglApp {
                     ui.add(egui::TextEdit::singleline(&mut o.title).desired_width(250.0));
                 });
                 ui.label(RichText::new(format!("Fehlerellipsen {} – Inhalt wie im Netzbild (Schalter über der Grafik)", fmt_scale(e))).small().color(MUTED));
-                ui.checkbox(&mut self.open_after, "nach dem Speichern öffnen");
+                ui.checkbox(&mut self.sys.open_after, "nach dem Speichern öffnen");
                 if ui.add(egui::Button::new(RichText::new("PDF speichern…").strong().color(Color32::WHITE)).fill(ACCENT)).clicked() {
                     go = true;
                 }
@@ -1866,11 +2096,28 @@ impl AusglApp {
         }
         if self.dlg_about {
             let mut open = true;
-            egui::Window::new("Über AUSGL-NT").open(&mut open).collapsible(false).resizable(false).show(ctx, |ui| {
+            egui::Window::new("Über AUSGL-NT").open(&mut open).collapsible(false).resizable(false).default_width(ABOUT_BREITE).show(ctx, |ui| {
+                ui.set_max_width(ABOUT_BREITE);
                 ui.label(RichText::new(format!("{} {}", crate::version::PROGRAMM, crate::version::FULL)).size(18.0).strong());
                 ui.label("Geodätische Netzausgleichung nach vermittelnden Beobachtungen");
                 ui.label("Lagenetz · Höhennetz · 2D+Höhe · 3D · Vorwärtsschnitte · Satzmittel · Transformation");
                 ui.label(RichText::new("Nachfolger von WAUSGL / AUSGL (Delphi, 1996–1998)").color(MUTED));
+                ui.add_space(8.0);
+                ui.horizontal(|ui| {
+                    ui.label("Autor:");
+                    ui.label(bold("Johann Gerner"));
+                });
+                ui.add_space(8.0);
+                // Hinweis zum Einsatzzweck und Haftung
+                egui::Frame::new().fill(Color32::from_rgb(254, 243, 199)).stroke(Stroke::new(1.0, WARN)).corner_radius(6).inner_margin(egui::Margin::same(10)).show(ui, |ui| {
+                    ui.label(RichText::new("⚠ Hinweis").strong().color(WARN));
+                    ui.label("Die Software ist für Ausbildungszwecke gedacht. Die verwendeten Algorithmen sind nicht vollständig getestet.");
+                        ui.label(bold("Die Nutzung geschieht auf eigene Gefahr. Professionelle Projekte dürfen mit AUSGL-NT nur nachgerechnet werden – maßgebend ist die Berechnung mit einer geprüften Software."));
+                });
+                ui.add_space(8.0);
+                ui.label("Dank an");
+                ui.label(bold("Prof. Fritz Wimbauer"));
+                ui.label(RichText::new("Prof. Dr.-Ing. Peter Wasmeier").color(Color32::from_rgb(160, 168, 180)));
             });
             self.dlg_about &= open;
         }
@@ -1942,9 +2189,9 @@ impl AusglApp {
             if let Some((st, _)) = &self.satz {
                 let doc = report::set_mean_doc(st, &self.proj, &self.sys.firmenkopf);
                 if let Some(p) = save_dialog("Protokoll Satzmittel", &format!("{}_satzmittel.rtf", self.proj.name), &[("Rich Text", &["rtf"])], dir) {
-                    let _ = std::fs::write(&p, crate::rtf::to_rtf(&doc, true));
-                    if self.open_after {
-                        open_file(&p);
+                    let _ = std::fs::write(&p, crate::rtf::to_rtf(&doc, self.sys.rtf_landscape));
+                    if self.sys.open_after {
+                        open_rtf(&p, self.sys.rtf_word);
                     }
                 }
             }
@@ -2015,14 +2262,49 @@ impl AusglApp {
             if save_rtf {
                 let doc = report::trans_doc(t, &self.trans_src, &self.trans_dst, &self.proj, &self.sys.firmenkopf);
                 if let Some(p) = save_dialog("Protokoll Transformation", "transformation.rtf", &[("Rich Text", &["rtf"])], dir) {
-                    let _ = std::fs::write(&p, crate::rtf::to_rtf(&doc, false));
-                    if self.open_after {
-                        open_file(&p);
+                    let _ = std::fs::write(&p, crate::rtf::to_rtf(&doc, self.sys.rtf_landscape));
+                    if self.sys.open_after {
+                        open_rtf(&p, self.sys.rtf_word);
                     }
                 }
             }
         }
         self.dlg_trans &= open;
+    }
+
+    /// eingebettete Anleitung in den Temp-Ordner schreiben und im Browser öffnen
+    fn open_doc(&mut self, name: &str, html: &str) {
+        let dir = std::env::temp_dir().join("AUSGL-NT");
+        let path = dir.join(format!("{}.html", name));
+        match std::fs::create_dir_all(&dir).and_then(|_| std::fs::write(&path, html)) {
+            Ok(_) => {
+                open_file(&path);
+                self.status = format!("{} im Browser geöffnet.", name);
+            }
+            Err(e) => self.status = format!("{} konnte nicht geöffnet werden: {}", name, e),
+        }
+    }
+
+    /// Reiter und Inhalt der Hauptfläche (links neben dem Messdaten-Editor)
+    fn main_area(&mut self, ui: &mut Ui) {
+        // umbrechen, damit die Reiter bei geöffnetem Editor nicht über die linke Hälfte hinausragen
+        ui.horizontal_wrapped(|ui| {
+            for (t, l) in [(Tab::Netz, "🗺  Netzbild"), (Tab::Beob, "📏  Beobachtungen"), (Tab::Koord, "📍  Koordinaten"), (Tab::Protokoll, "📄  Protokoll"), (Tab::Daten, "🗂  Daten")] {
+                let sel = self.tab == t;
+                let txt = RichText::new(l).size(14.0).color(if sel { ACCENT } else { Color32::from_rgb(51, 65, 85) });
+                if ui.add(egui::Button::selectable(sel, txt)).clicked() {
+                    self.tab = t;
+                }
+            }
+        });
+        ui.add_space(4.0);
+        match self.tab {
+            Tab::Netz => self.net_view(ui),
+            Tab::Beob => self.obs_table(ui),
+            Tab::Koord => self.coord_table(ui),
+            Tab::Protokoll => self.protocol(ui),
+            Tab::Daten => self.data_view(ui),
+        }
     }
 }
 
@@ -2046,22 +2328,17 @@ impl eframe::App for AusglApp {
         });
         egui::Panel::left("side").resizable(true).default_size(320.0).show(ui, |ui| self.side(ui));
         egui::CentralPanel::default().show(ui, |ui| {
-            ui.horizontal(|ui| {
-                for (t, l) in [(Tab::Netz, "🗺  Netzbild"), (Tab::Beob, "📏  Beobachtungen"), (Tab::Koord, "📍  Koordinaten"), (Tab::Protokoll, "📄  Protokoll"), (Tab::Daten, "🗂  Daten")] {
-                    let sel = self.tab == t;
-                    let txt = RichText::new(l).size(14.0).color(if sel { ACCENT } else { Color32::from_rgb(51, 65, 85) });
-                    if ui.add(egui::Button::selectable(sel, txt)).clicked() {
-                        self.tab = t;
-                    }
-                }
-            });
-            ui.add_space(4.0);
-            match self.tab {
-                Tab::Netz => self.net_view(ui),
-                Tab::Beob => self.obs_table(ui),
-                Tab::Koord => self.coord_table(ui),
-                Tab::Protokoll => self.protocol(ui),
-                Tab::Daten => self.data_view(ui),
+            if self.editor.open {
+                // rechte Fensterhälfte: Messdaten-Editor; Trennlinie mit der Maus verschiebbar
+                let (left, right) = self.split_editor(ui);
+                let mut l = ui.new_child(egui::UiBuilder::new().max_rect(left));
+                l.set_clip_rect(left.intersect(ui.clip_rect()));
+                self.main_area(&mut l);
+                let mut r = ui.new_child(egui::UiBuilder::new().max_rect(right));
+                r.set_clip_rect(right.intersect(ui.clip_rect()));
+                self.editor_panel(&mut r);
+            } else {
+                self.main_area(ui);
             }
         });
         self.dialogs(&ctx);

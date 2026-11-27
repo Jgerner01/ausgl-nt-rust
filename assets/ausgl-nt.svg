@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-label="AUSGL-NT Symbol: halbe Gauß-Glocke über Netz">
+<rect x="8" y="8" width="240" height="240" rx="52" fill="#115e59"></rect>
+<path d="M90 30 C146 30 156 152 234 154 L234 160 L90 160 Z" fill="#fde68a" fill-opacity="0.28"></path>
+<path d="M90 30 C146 30 156 152 234 154" fill="none" stroke="#fde68a" stroke-width="12" stroke-linecap="round"></path>
+<line x1="90" y1="42" x2="90" y2="160" stroke="#ffffff" stroke-width="5" stroke-dasharray="10 9" stroke-opacity="0.75"></line>
+<g stroke="#ccfbf1" stroke-width="9" stroke-linecap="round">
+<line x1="50" y1="214" x2="200" y2="214"></line>
+<line x1="50" y1="214" x2="90" y2="176"></line>
+<line x1="200" y1="214" x2="90" y2="176"></line>
+</g>
+<polygon points="50,194 70,228 30,228" fill="#ffffff"></polygon>
+<polygon points="200,194 220,228 180,228" fill="#ffffff"></polygon>
+<circle cx="90" cy="176" r="14" fill="#f97316" stroke="#ffffff" stroke-width="5"></circle>
+</svg>

@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AUSGL-NT – Kurzanleitung</title>
+<style>
+:root { --ink:#0f172a; --muted:#475569; --accent:#1d4ed8; --prof:#14532d; --line:#e2e8f0; }
+* { box-sizing: border-box; }
+body { margin: 0; font-family: "Segoe UI", system-ui, sans-serif; color: var(--ink); background: #f4f6fa; line-height: 1.55; }
+header { position: sticky; top: 0; z-index: 2; background: #ffffff; border-bottom: 1px solid var(--line);
+         display: flex; gap: 16px; align-items: center; justify-content: space-between; padding: 10px 24px; }
+header .titel { font-weight: 600; }
+header label { display: flex; gap: 8px; align-items: center; cursor: pointer; color: var(--prof); font-style: italic; }
+header input { width: 18px; height: 18px; accent-color: #15803d; }
+main { max-width: 920px; margin: 0 auto; padding: 24px 32px 64px; background: #ffffff; }
+h1 { font-size: 30px; margin: 8px 0 12px; }
+h2 { font-size: 22px; margin: 36px 0 10px; padding-top: 8px; border-top: 1px solid var(--line); color: #1e3a8a; }
+h3 { font-size: 17px; margin: 24px 0 8px; }
+a { color: var(--accent); }
+code, pre { font-family: Consolas, "Cascadia Mono", monospace; font-size: 13px; }
+pre { background: #f1f5f9; border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; overflow-x: auto; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; font-size: 14px; }
+th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; vertical-align: top; }
+th { background: #eef2ff; }
+blockquote { margin: 16px 0; padding: 10px 16px; background: #fef3c7; border-left: 4px solid #d97706; border-radius: 6px; }
+.prof { margin: 16px 0; padding: 12px 16px; background: #f0fdf4; border-left: 4px solid #15803d; border-radius: 6px;
+        color: var(--prof); font-style: italic; }
+.prof p { margin: 6px 0; }
+.ohne-prof .prof { display: none; }
+math[display="block"] { margin: 10px 0; padding: 4px 0; overflow-x: auto; overflow-y: hidden; }
+math { font-size: 1.08em; }
+@media print { header { display: none; } body { background: #fff; } main { max-width: none; padding: 0; } }
+</style>
+</head>
+<body>
+<header><span class="titel">AUSGL-NT – Kurzanleitung</span></header>
+<main>
+<h1>AUSGL-NT – Kurzanleitung</h1>
+<p>AUSGL-NT gleicht geodätische Netze nach der Methode der kleinsten Quadrate aus: Lagenetze, Höhennetze,
+Lage + Höhe, volle 3D-Netze und räumliche Vorwärtsschnitte.</p>
+<blockquote>
+<p><strong>Wichtig:</strong> AUSGL-NT ist für die Ausbildung gedacht. Die Algorithmen sind nicht vollständig getestet.
+Die Nutzung geschieht auf eigene Gefahr. Professionelle Projekte dürfen mit AUSGL-NT nur <strong>nachgerechnet</strong>
+werden – maßgebend ist die Berechnung mit einer geprüften Software.</p>
+</blockquote>
+<p>Die ausführliche Beschreibung mit allen Formeln steht im <strong>Handbuch</strong> (Hilfe ▸ Handbuch).</p>
+<hr />
+<h2>1. In fünf Schritten zum Ergebnis</h2>
+<ol>
+<li><strong>Daten bereitstellen</strong> – entweder eine <em>Netzdatei</em> (<code>*.NET</code>, empfohlen), einen <em>CAPLAN-Datensatz</em> (<code>*.N</code>)
+   oder die klassischen Dateien <em>Punktdatei</em> (<code>*.KOR</code>) + <em>Messdatei</em> (<code>*.DAT</code>) + ggf. <em>Nivellement</em>.</li>
+<li><strong>Projekt beginnen</strong>
+   * Netzdatei: <em>Datei ▸ Netzdatei (*.NET) öffnen…</em>
+   * CAPLAN: <em>Datei ▸ CAPLAN-Datensatz (*.N) importieren…</em>
+   * KOR/DAT: <em>Datei ▸ Projekt neu anlegen…</em>, dann im Projektbeschrieb die Dateien wählen.
+   * Zum Ausprobieren: <em>Datei ▸ Beispielprojekt laden</em> (enthält absichtlich einen groben Fehler).</li>
+<li><strong>Einstellungen prüfen</strong> (Seitenleiste links): Berechnungsart, Variante (z. B. <em>1. Normale Ausgleichung</em>
+   mit festen Altpunkten oder <em>5. Freie Netzausgleichung</em>), Genauigkeiten der Messungen.</li>
+<li><strong>Ausgleichen</strong> – Knopf ▶ <em>Ausgleichen</em> oder Taste <strong>F5</strong>.</li>
+<li><strong>Ergebnis beurteilen und ausgeben</strong>
+   * <em>s0</em> sollte nahe 1 liegen, der <em>Globaltest</em> bestanden sein.
+   * Rot markierte Beobachtungen sind <em>Ausreißer</em> (normierte Verbesserung &gt; 3,29).
+   * Ausgabe: <em>Protokoll RTF</em> (A4 quer), Netzbild als <em>PDF</em> / <em>DXF</em>, <em>Neupunkte</em> als <code>*.KON</code>.</li>
+</ol>
+<p>Projekt am Ende mit <em>Datei ▸ Projekt speichern</em> als <code>*.ausgl</code> sichern – darin stehen die Einstellungen und der
+Verweis auf die Datendateien.</p>
+<hr />
+<h2>2. Wie die Daten aussehen sollen</h2>
+<p>Alle Dateien sind einfache Textdateien, die Felder sind durch <strong>Leerzeichen</strong> getrennt. Winkel in <strong>gon</strong>,
+Strecken und Koordinaten in <strong>Metern</strong>. Y = Rechtswert, X = Hochwert.</p>
+<h3>Netzdatei <code>*.NET</code> (empfohlen)</h3>
+<p>Punkte und Messungen in <strong>einer</strong> Datei. Jede Zeile beginnt mit einem Kennbuchstaben, <code>#</code> leitet einen Kommentar
+ein, <code>-</code> bedeutet „kein Wert“.</p>
+<pre><code class="language-text"># P  Punkt   Rechtswert      Hochwert       Höhe     Art  Code
+P    G1      32689789.5810   5330413.9290   522.7310  F    GP
+P    SP1     32689783.0570   5330550.6890   -         N    -
+#    Art: F = Lage+Höhe fest, L = nur Lage fest, H = nur Höhe fest, N = Neupunkt
+
+# S  Standpunkt  Instrumentenhöhe  Bemerkung
+S    SP1         1.520             Satz 1
+# Z  Ziel  Hz[gon]     Strecke[m]  V[gon]   Zielhöhe  Code  Status
+Z    G1    321.94583   136.9148    99.9718  1.300     GP    RSH
+Z    G2    284.73635   173.4850    99.9345  1.300     GP    -SH
+
+# N  Von  Nach  dH[m]     Strecke[m]  Status
+N    SP1  G1    0.06042   136.92      H
+</code></pre>
+<ul>
+<li><strong>Status</strong> einer Zielung: <code>R</code> = Richtung, <code>S</code> = Strecke, <code>H</code> = Höhe/Zenitwinkel wird verwendet; ein <code>-</code> an
+  der Stelle streicht diesen Teil (im Beispiel ist die Richtung nach G2 gestrichen).</li>
+<li>Eine Strecke mit <code>*</code> (z. B. <code>136.9148*</code>) ist eine <strong>Horizontalstrecke</strong>; dann steht in der V-Spalte der
+  Höhenunterschied statt des Zenitwinkels.</li>
+<li>Optional dahinter: eigene Standardabweichungen <code>σHz [mgon]  σS [mm]  σV [mgon bzw. mm]</code>.</li>
+</ul>
+<h3>Punktdatei <code>*.KOR</code> und Messdatei <code>*.DAT</code> (klassisch, wie WAUSGL)</h3>
+<pre><code class="language-text"># KOR: Nummer  Rechtswert  Hochwert  [Höhe]  [Code]
+1234   4565310.18   5312520.13   513.16   015
+
+# DAT (CADdy): -Standpunkt  Instrumentenhöhe  /  Ziel  Hz  Strecke  Zenit  Zielhöhe  Code
+-125      1.520    PP
+1251     125.1234    230.333     98.4567   1.600    GP5
+1252     126.4567    190.444*    10.123    1.600    GP5
+</code></pre>
+<p>Die Punkte der KOR-Datei sind <strong>Altpunkte (Festpunkte)</strong>. Für Neupunkte rechnet AUSGL-NT die Näherungs­koordinaten
+selbst.</p>
+<h3>CAPLAN-Datensätze <code>*.N</code> können direkt eingelesen werden</h3>
+<p>Datensätze aus <strong>CAPLAN</strong> (Cremer Programmentwicklung) liest AUSGL-NT über
+<em>Datei ▸ CAPLAN-Datensatz (*.N) importieren…</em> ein. Übernommen werden Punkte, Festpunkte (Abschnitt <code>F</code>),
+Richtungssätze (<code>R</code>), Strecken (<code>E</code>) und Höhenunterschiede (<code>H</code>) – <strong>mit ihren eigenen Standardabweichungen</strong>.
+GNSS-Basislinien (Abschnitt <code>B</code>) werden nicht ausgewertet; das Programm meldet das im Reiter <em>Daten</em>.</p>
+<pre><code class="language-text">               N 7      100.0000      250.0000      0.00000 |
+              S1 7      100.0000      100.0000      0.00000 |
+T
+Bsp 1 - Freie Stationierung
+F
+              S1         1
+              S1         2
+E
+               N              S1    150.0000   0.00200
+R
+               N
+                              S1   200.00000  0.000600
+</code></pre>
+<p>Tipp: Mit <em>Datei ▸ Messdaten als Netzdatei (*.NET) speichern…</em> wird daraus eine bearbeitbare Netzdatei.</p>
+<hr />
+<h2>3. Messdaten prüfen und korrigieren</h2>
+<ul>
+<li>Im <strong>Netzbild</strong> eine Linie oder einen Punkt anklicken: Rechts öffnet sich die <strong>Messdaten-Tabelle</strong>, die
+  zugehörigen Zeilen sind gelb markiert.</li>
+<li>Werte direkt in der Tabelle ändern; mit den Schaltern <strong>R S H</strong> einzelne Beobachtungen ein- und ausschalten;
+  bei Punkten mit <strong>F L H N</strong> die Punktart festlegen.</li>
+<li><em>Speichern</em> schreibt alles als Netzdatei – Streichungen und Punktarten stehen dann in der Datei selbst.</li>
+</ul>
+<hr />
+<h2>4. Häufige Fragen</h2>
+<table>
+<thead>
+<tr>
+<th>Meldung / Beobachtung</th>
+<th>Ursache und Abhilfe</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>„keine Näherungswerte für Punkt …“</td>
+<td>Punkt ist nicht genug bestimmt (z. B. nur eine Richtung). Beobachtung ergänzen oder Näherungs­koordinaten in die Netzdatei schreiben (Art <code>N</code>).</td>
+</tr>
+<tr>
+<td>„Normalgleichungsmatrix singulär“</td>
+<td>Datum fehlt: zu wenige Festpunkte. Festpunkte ergänzen oder Variante <em>5. Freie Netzausgleichung</em> wählen.</td>
+</tr>
+<tr>
+<td>s0 deutlich größer als 1</td>
+<td>Genauigkeiten zu optimistisch angesetzt oder grobe Fehler vorhanden – Ausreißer prüfen.</td>
+</tr>
+<tr>
+<td>Protokoll passt nicht auf die Seite</td>
+<td>RTF nicht mit WordPad öffnen (ignoriert das Querformat), sondern mit Word oder LibreOffice – siehe <em>Datei ▸ Voreinstellungen</em>.</td>
+</tr>
+</tbody>
+</table>
+</main>
+
+</body>
+</html>

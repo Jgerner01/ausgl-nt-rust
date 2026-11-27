@@ -1,6 +1,6 @@
 [package]
 name = "ausgl-nt"
-version = "1.1.0"
+version = "1.2.0"
 edition = "2021"
 build = "build.rs"
 description = "Geodätische Netzausgleichung (Lage, Höhe, 2D+H, 3D, Vorwärtsschnitte) – Nachfolger von WAUSGL"

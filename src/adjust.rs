@@ -410,6 +410,10 @@ pub struct Input<'a> {
     pub kor: &'a [KorPoint],
     pub lagekor: &'a [KorPoint],
     pub kon: &'a [KorPoint],
+    /// Näherungskoordinaten aus Netz- bzw. CAPLAN-Datei (immer verwendet; Lage NaN = unbekannt)
+    pub approx: &'a [KorPoint],
+    /// Punkte mit fester Höhe, deren Lage unbekannt ist (Höhe steht in `approx`)
+    pub hfix: &'a [String],
     pub setups: &'a [Setup],
     pub niv: &'a [NivLine],
     pub disabled: &'a [String],
@@ -429,6 +433,15 @@ pub fn build_points(inp: &Input, s: &Settings, need_plan: bool, need_h: bool, lo
         let e = pm.entry(p.name.clone()).or_default();
         e.plan = Some((p.y, p.x));
         if p.h.is_some() {
+            e.h = p.h;
+        }
+    }
+    for p in inp.approx {
+        let e = pm.entry(p.name.clone()).or_default();
+        if e.plan.is_none() && p.y.is_finite() && p.x.is_finite() {
+            e.plan = Some((p.y, p.x));
+        }
+        if e.h.is_none() {
             e.h = p.h;
         }
     }
@@ -479,11 +492,11 @@ pub fn build_net(inp: &Input, s: &Settings, pm: &PointMap, plan: bool, height: b
             has_plan: a.plan.is_some(),
             has_h: a.h.is_some(),
             fix_plan: k.is_some(),
-            fix_h: k.map_or(false, |k| k.h.is_some()),
+            fix_h: k.map_or(false, |k| k.h.is_some()) || inp.hfix.iter().any(|n| n == name),
             y0: y,
             x0: x,
             h0: h,
-            code: k.map(|k| k.code.clone()).unwrap_or_else(|| "NP".into()),
+            code: k.map(|k| k.code.clone()).unwrap_or_else(|| if inp.hfix.iter().any(|n| n == name) { "HP".into() } else { "NP".into() }),
         });
         idx.insert(name.into(), net.pts.len() - 1);
         net.pts.len() - 1
@@ -522,8 +535,8 @@ pub fn build_net(inp: &Input, s: &Settings, pm: &PointMap, plan: bool, height: b
                 };
                 if plan {
                     if let Some(hz) = sh.hz {
-                        let mut sig = s.sigma_dir_mgon / 1000.0;
-                        if s.dir_weight_dist > 0.0 {
+                        let mut sig = sh.sigma_hz.unwrap_or(s.sigma_dir_mgon / 1000.0);
+                        if s.dir_weight_dist > 0.0 && sh.sigma_hz.is_none() {
                             // Original: Gewicht sqrt(s / gew_dist)
                             sig /= (dist_any / s.dir_weight_dist).sqrt().sqrt();
                         }
@@ -533,10 +546,10 @@ pub fn build_net(inp: &Input, s: &Settings, pm: &PointMap, plan: bool, height: b
                         if let Some(d) = sh.dist {
                             if mode3d && !sh.dist_horizontal {
                                 let c = red_factor(d);
-                                push(&mut net, ObsKind::SDist, d + c, dist_sigma(s, d), d, c);
+                                push(&mut net, ObsKind::SDist, d + c, sh.sigma_dist.unwrap_or_else(|| dist_sigma(s, d)), d, c);
                             } else if let Some(h) = hd {
                                 let c = red_factor(h);
-                                push(&mut net, ObsKind::HDist, h + c, dist_sigma(s, h), h, c);
+                                push(&mut net, ObsKind::HDist, h + c, sh.sigma_dist.unwrap_or_else(|| dist_sigma(s, h)), h, c);
                             }
                         }
                     }
@@ -544,13 +557,15 @@ pub fn build_net(inp: &Input, s: &Settings, pm: &PointMap, plan: bool, height: b
                 if height {
                     if mode3d {
                         if let (Some(z), false) = (sh.zenith, sh.dist_horizontal) {
-                            push(&mut net, ObsKind::Zenith, z, s.sigma_zen_mgon / 1000.0, dist_any, 0.0);
+                            push(&mut net, ObsKind::Zenith, z, sh.sigma_v.unwrap_or(s.sigma_zen_mgon / 1000.0), dist_any, 0.0);
                         } else if let (Some(dh), true) = (sh.dh, sh.dist_horizontal) {
-                            let sig = trig_sigma(s, dist_any);
+                            let sig = sh.sigma_v.unwrap_or_else(|| trig_sigma(s, dist_any));
                             push(&mut net, ObsKind::DhTrig, dh, sig, dist_any, 0.0);
                         }
                     } else if let Some(dh) = shot_dh(sh, st.ih, s_coord.map(|sc| sc - red_factor(sc))) {
-                        let sig = trig_sigma(s, dist_any);
+                        // eigene σ nur bei direkt gegebenem dH (bei Zenitwinkeln ist sie in gon angegeben)
+                        let own = if sh.dist_horizontal { sh.sigma_v } else { None };
+                        let sig = own.unwrap_or_else(|| trig_sigma(s, dist_any));
                         push(&mut net, ObsKind::DhTrig, dh, sig, dist_any, 0.0);
                     }
                 }
@@ -563,7 +578,7 @@ pub fn build_net(inp: &Input, s: &Settings, pm: &PointMap, plan: bool, height: b
             let b = get(&mut net, &n.to);
             let key = obs_key('N', n.line, ObsKind::DhNiv);
             let active = !dis(&key);
-            let sig = s.sigma_niv_mm_km / 1000.0 * (n.s / 1000.0).sqrt().max(0.01);
+            let sig = n.sigma.unwrap_or_else(|| s.sigma_niv_mm_km / 1000.0 * (n.s / 1000.0).sqrt().max(0.01));
             net.obs.push(Obs { kind: ObsKind::DhNiv, from: a, to: b, setup: usize::MAX, value: n.dh, sigma: sig, ih: 0.0, th: 0.0, key, line: n.line, active, dist: n.s, corr: 0.0 });
         }
     }

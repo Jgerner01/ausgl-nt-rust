@@ -403,7 +403,7 @@ mod tests {
     use crate::io::Shot;
 
     fn shot(t: &str, hz: f64, d: Option<f64>) -> Shot {
-        Shot { target: t.into(), hz: Some(hz), dist: d, dist_horizontal: true, zenith: None, dh: None, th: 0.0, code: "00".into(), line: 0 }
+        Shot { target: t.into(), hz: Some(hz), dist: d, dist_horizontal: true, zenith: None, dh: None, th: 0.0, code: "00".into(), line: 0, sigma_hz: None, sigma_dist: None, sigma_v: None }
     }
 
     #[test]

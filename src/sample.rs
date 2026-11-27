@@ -81,7 +81,7 @@ impl Sample {
                 }
                 let d = slope + rng.gauss() * 0.003;
                 let zz = z + rng.gauss() * 0.001;
-                shots.push(Shot { target: t.to_string(), hz: Some(hz), dist: Some(d), dist_horizontal: false, zenith: Some(zz), dh: None, th, code: "00".into(), line });
+                shots.push(Shot { target: t.to_string(), hz: Some(hz), dist: Some(d), dist_horizontal: false, zenith: Some(zz), dh: None, th, code: "00".into(), line, sigma_hz: None, sigma_dist: None, sigma_v: None });
             }
             setups.push(Setup { station: st.to_string(), ih, remark: String::new(), shots, line: st_line });
         }
@@ -91,14 +91,14 @@ impl Sample {
             let (pa, pb) = (p(a), p(b));
             let s = riwi(pa.1, pa.2, pb.1, pb.2).1 * 1.1;
             nline += 2;
-            niv.push(NivLine { from: a.into(), to: b.into(), dh: pb.3 - pa.3 + rng.gauss() * 0.002 * (s / 1000.0).sqrt(), s: (s * 10.0).round() / 10.0, line: nline });
+            niv.push(NivLine { from: a.into(), to: b.into(), dh: pb.3 - pa.3 + rng.gauss() * 0.002 * (s / 1000.0).sqrt(), s: (s * 10.0).round() / 10.0, line: nline, sigma: None });
         }
         let truth = PTS.iter().map(|p| (p.0.to_string(), p.1, p.2, p.3)).collect();
         Sample { kor, setups, niv, truth, gross_line }
     }
 
     pub fn input(&self, kind: NetKind) -> Input<'_> {
-        Input { kind, kor: &self.kor, lagekor: &[], kon: &[], setups: &self.setups, niv: &self.niv, disabled: &[] }
+        Input { kind, kor: &self.kor, lagekor: &[], kon: &[], approx: &[], hfix: &[], setups: &self.setups, niv: &self.niv, disabled: &[] }
     }
 
     pub fn truth(&self, name: &str) -> (f64, f64, f64) {

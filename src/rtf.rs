@@ -139,4 +139,23 @@ mod tests {
         let close = r.matches('}').count() - r.matches("\\}").count();
         assert_eq!(open, close);
     }
+
+    /// Protokoll des Seminar-Brückennetzes als RTF schreiben (Sichtprüfung in Word/LibreOffice):
+    /// AUSGL_RTF_OUT=Ordner cargo test --release -- --ignored rtf_seminar
+    #[test]
+    #[ignore]
+    fn rtf_seminar() {
+        let Ok(out_dir) = std::env::var("AUSGL_RTF_OUT") else { return };
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../Testdaten/Seminar Qualität von geodätischen Netzen - Dateien");
+        let c = crate::caplan::parse(&crate::io::read_text(&dir.join("Bsp3 - Brückennetz mit 6 SP.N")).unwrap());
+        let mut s = crate::adjust::Settings::default();
+        s.variant = c.variant();
+        let inp = crate::adjust::Input { kind: c.kind(), kor: &c.fixed, lagekor: &[], kon: &[], approx: &c.approx, hfix: &c.hfix, setups: &c.setups, niv: &c.niv, disabled: &[] };
+        let o = crate::adjust::run(&inp, &s).unwrap();
+        let proj = crate::io::ProjectFile { name: "Brückennetz".into(), kind: c.kind(), settings: s.clone(), ..Default::default() };
+        let doc = crate::report::adjustment_doc(&o, &s, &proj, &["Büro".to_string()]);
+        for (name, land) in [("quer", true), ("hoch", false)] {
+            std::fs::write(std::path::Path::new(&out_dir).join(format!("protokoll_{}.rtf", name)), to_rtf(&doc, land)).unwrap();
+        }
+    }
 }

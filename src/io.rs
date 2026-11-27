@@ -35,6 +35,15 @@ pub struct Shot {
     pub th: f64,
     pub code: String,
     pub line: usize,
+    /// eigene Standardabweichung der Richtung in gon (z. B. aus CAPLAN), sonst Voreinstellung
+    #[serde(default)]
+    pub sigma_hz: Option<f64>,
+    /// eigene Standardabweichung der Strecke in m, sonst Voreinstellung
+    #[serde(default)]
+    pub sigma_dist: Option<f64>,
+    /// eigene Standardabweichung des Zenitwinkels in gon bzw. des Höhenunterschieds in m
+    #[serde(default)]
+    pub sigma_v: Option<f64>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -54,6 +63,9 @@ pub struct NivLine {
     /// Nivellementsstrecke in m
     pub s: f64,
     pub line: usize,
+    /// eigene Standardabweichung des Höhenunterschieds in m (z. B. aus CAPLAN), sonst Voreinstellung
+    #[serde(default)]
+    pub sigma: Option<f64>,
 }
 
 fn tokens(line: &str) -> Vec<&str> {
@@ -125,7 +137,7 @@ pub fn parse_tachy(text: &str) -> Vec<Setup> {
         }
         let Some(setup) = out.last_mut() else { continue };
         let hz = t.get(1).and_then(|s| num(s));
-        let mut shot = Shot { target: t[0].to_string(), hz, dist: None, dist_horizontal: false, zenith: None, dh: None, th: 0.0, code: "00".into(), line: ln + 1 };
+        let mut shot = Shot { target: t[0].to_string(), hz, dist: None, dist_horizontal: false, zenith: None, dh: None, th: 0.0, code: "00".into(), line: ln + 1, sigma_hz: None, sigma_dist: None, sigma_v: None };
         if let Some(sd) = t.get(2) {
             shot.dist_horizontal = sd.ends_with('*');
             shot.dist = num(sd).filter(|d| *d > 0.00001);
@@ -176,7 +188,7 @@ pub fn parse_niv(text: &str) -> Vec<NivLine> {
         }
         let (Some(f), Some(dh)) = (from.clone(), t.get(1).and_then(|s| num(s))) else { continue };
         let s = t.get(2).and_then(|s| num(s)).filter(|s| *s > 0.0).unwrap_or(1.0);
-        out.push(NivLine { from: f, to: t[0].to_string(), dh, s, line: ln + 1 });
+        out.push(NivLine { from: f, to: t[0].to_string(), dh, s, line: ln + 1, sigma: None });
     }
     out
 }

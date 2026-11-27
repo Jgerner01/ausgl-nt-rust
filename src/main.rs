@@ -4,10 +4,12 @@
 mod adjust;
 mod app;
 mod approx;
+mod caplan;
 mod export;
 mod geo;
 mod io;
 mod linalg;
+mod netfile;
 mod pdf;
 mod report;
 mod rtf;
@@ -39,6 +41,10 @@ fn main() -> eframe::Result<()> {
         .with_title("AUSGL-NT – Geodätische Netzausgleichung")
         .with_inner_size([1440.0, 900.0])
         .with_min_inner_size([900.0, 560.0]);
+    // Fenstersymbol (dasselbe Motiv wie das EXE-Icon)
+    if let Ok(icon) = eframe::icon_data::from_png_bytes(include_bytes!("../assets/ausgl-nt.png")) {
+        viewport = viewport.with_icon(icon);
+    }
     if screenshot.is_some() {
         viewport = viewport.with_active(false);
         #[cfg(windows)]

@@ -199,7 +199,7 @@ pub fn set_means(setups: &[Setup]) -> (Vec<SetMeanStation>, Vec<Setup>) {
             .iter()
             .map(|r| {
                 let (th, code) = th_of(&r.target);
-                Shot { target: r.target.clone(), hz: Some(r.hz), dist: r.dist, dist_horizontal: r.zenith.is_none() && r.dist.is_some(), zenith: r.zenith, dh: None, th, code, line: 0 }
+                Shot { target: r.target.clone(), hz: Some(r.hz), dist: r.dist, dist_horizontal: r.zenith.is_none() && r.dist.is_some(), zenith: r.zenith, dh: None, th, code, line: 0, sigma_hz: None, sigma_dist: None, sigma_v: None }
             })
             .collect();
         out.push(Setup { station: first.station.clone(), ih: first.ih, remark: format!("Satzmittel aus {} Sätzen", ns), shots, line: first.line });
@@ -404,7 +404,7 @@ mod tests {
 
     #[test]
     fn set_mean_two_faces() {
-        let mk = |t: &str, hz: f64, z: f64| Shot { target: t.into(), hz: Some(hz), dist: Some(100.0), dist_horizontal: false, zenith: Some(z), dh: None, th: 1.5, code: "00".into(), line: 0 };
+        let mk = |t: &str, hz: f64, z: f64| Shot { target: t.into(), hz: Some(hz), dist: Some(100.0), dist_horizontal: false, zenith: Some(z), dh: None, th: 1.5, code: "00".into(), line: 0, sigma_hz: None, sigma_dist: None, sigma_v: None };
         let st = |shots: Vec<Shot>| Setup { station: "S".into(), ih: 1.5, remark: String::new(), shots, line: 0 };
         let s1 = st(vec![mk("A", 10.0, 99.0), mk("B", 110.0, 101.0), mk("A", 210.002, 301.002), mk("B", 310.002, 299.002)]);
         let s2 = st(vec![mk("A", 60.0, 99.0), mk("B", 160.001, 101.0)]);
