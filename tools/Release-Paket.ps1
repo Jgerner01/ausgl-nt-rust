@@ -17,7 +17,7 @@ $Paket      = "AUSGL-NT"
 $Repository = "Jgerner01/ausgl-nt-rust"
 $CargoArgs  = @()
 $Programme  = @("ausgl-nt.exe")
-$Beilagen   = @("README.md")
+$Beilagen   = @("README.md", "docs/Kurzanleitung.docx", "docs/Handbuch.docx")
 # -------------------------------------------------------------------------------------------------
 
 $ErrorActionPreference = "Stop"

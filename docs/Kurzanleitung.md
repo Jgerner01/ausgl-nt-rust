@@ -16,17 +16,17 @@ Die ausführliche Beschreibung mit allen Formeln steht im **Handbuch** (Hilfe �
 1. **Daten bereitstellen** – entweder eine *Netzdatei* (`*.NET`, empfohlen), einen *CAPLAN-Datensatz* (`*.N`)
    oder die klassischen Dateien *Punktdatei* (`*.KOR`) + *Messdatei* (`*.DAT`) + ggf. *Nivellement*.
 2. **Projekt beginnen**
-   * Netzdatei: *Datei ▸ Netzdatei (\*.NET) öffnen…*
-   * CAPLAN: *Datei ▸ CAPLAN-Datensatz (\*.N) importieren…*
-   * KOR/DAT: *Datei ▸ Projekt neu anlegen…*, dann im Projektbeschrieb die Dateien wählen.
-   * Zum Ausprobieren: *Datei ▸ Beispielprojekt laden* (enthält absichtlich einen groben Fehler).
+    * Netzdatei: *Datei ▸ Netzdatei (\*.NET) öffnen…*
+    * CAPLAN: *Datei ▸ CAPLAN-Datensatz (\*.N) importieren…*
+    * KOR/DAT: *Datei ▸ Projekt neu anlegen…*, dann im Projektbeschrieb die Dateien wählen.
+    * Zum Ausprobieren: *Datei ▸ Beispielprojekt laden* (enthält absichtlich einen groben Fehler).
 3. **Einstellungen prüfen** (Seitenleiste links): Berechnungsart, Variante (z. B. *1. Normale Ausgleichung*
    mit festen Altpunkten oder *5. Freie Netzausgleichung*), Genauigkeiten der Messungen.
 4. **Ausgleichen** – Knopf ▶ *Ausgleichen* oder Taste **F5**.
 5. **Ergebnis beurteilen und ausgeben**
-   * *s0* sollte nahe 1 liegen, der *Globaltest* bestanden sein.
-   * Rot markierte Beobachtungen sind *Ausreißer* (normierte Verbesserung > 3,29).
-   * Ausgabe: *Protokoll RTF* (A4 quer), Netzbild als *PDF* / *DXF*, *Neupunkte* als `*.KON`.
+    * *s0* sollte nahe 1 liegen, der *Globaltest* bestanden sein.
+    * Rot markierte Beobachtungen sind *Ausreißer* (normierte Verbesserung > 3,29).
+    * Ausgabe: *Protokoll RTF* (A4 quer), Netzbild als *PDF* / *DXF*, *Neupunkte* als `*.KON`.
 
 Projekt am Ende mit *Datei ▸ Projekt speichern* als `*.ausgl` sichern – darin stehen die Einstellungen und der
 Verweis auf die Datendateien.

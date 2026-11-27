@@ -1,6 +1,7 @@
 # AUSGL-NT – Handbuch
 
 **Geodätische Netzausgleichung nach vermittelnden Beobachtungen**
+
 Autor: Johann Gerner
 
 > **Wichtig:** AUSGL-NT ist für die Ausbildung gedacht. Die verwendeten Algorithmen sind nicht vollständig

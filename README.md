@@ -13,7 +13,9 @@ Geodätische Netzausgleichung nach vermittelnden Beobachtungen – Nachfolger vo
 Rechenregeln und Konstanten aus dem Original: siehe `MECHANICS.md`.
 
 Anleitungen: [Kurzanleitung](docs/Kurzanleitung.md) und [Handbuch](docs/Handbuch.md) mit allen Formeln, Zahlenbeispielen und Professor-Modus.
-Die HTML-Fassungen fürs Hilfe-Menü erzeugt `python tools/Doku-HTML.py` (benötigt `markdown` und `latex2mathml`).
+Die HTML-Fassungen fürs Hilfe-Menü erzeugt `python tools/Doku-HTML.py` (benötigt `markdown` und `latex2mathml`),
+die Word-Fassungen mit echten Formeln `python tools/Doku-DOCX.py` (zusätzlich `python-docx`, `lxml` und Microsoft Office für `MML2OMML.XSL`).
+Die Word-Fassungen liegen auch dem Release-Paket bei.
 
 ## Netzdatei (*.NET)
 

@@ -50,18 +50,22 @@ werden – maßgebend ist die Berechnung mit einer geprüften Software.</p>
 <ol>
 <li><strong>Daten bereitstellen</strong> – entweder eine <em>Netzdatei</em> (<code>*.NET</code>, empfohlen), einen <em>CAPLAN-Datensatz</em> (<code>*.N</code>)
    oder die klassischen Dateien <em>Punktdatei</em> (<code>*.KOR</code>) + <em>Messdatei</em> (<code>*.DAT</code>) + ggf. <em>Nivellement</em>.</li>
-<li><strong>Projekt beginnen</strong>
-   * Netzdatei: <em>Datei ▸ Netzdatei (*.NET) öffnen…</em>
-   * CAPLAN: <em>Datei ▸ CAPLAN-Datensatz (*.N) importieren…</em>
-   * KOR/DAT: <em>Datei ▸ Projekt neu anlegen…</em>, dann im Projektbeschrieb die Dateien wählen.
-   * Zum Ausprobieren: <em>Datei ▸ Beispielprojekt laden</em> (enthält absichtlich einen groben Fehler).</li>
+<li><strong>Projekt beginnen</strong><ul>
+<li>Netzdatei: <em>Datei ▸ Netzdatei (*.NET) öffnen…</em></li>
+<li>CAPLAN: <em>Datei ▸ CAPLAN-Datensatz (*.N) importieren…</em></li>
+<li>KOR/DAT: <em>Datei ▸ Projekt neu anlegen…</em>, dann im Projektbeschrieb die Dateien wählen.</li>
+<li>Zum Ausprobieren: <em>Datei ▸ Beispielprojekt laden</em> (enthält absichtlich einen groben Fehler).</li>
+</ul>
+</li>
 <li><strong>Einstellungen prüfen</strong> (Seitenleiste links): Berechnungsart, Variante (z. B. <em>1. Normale Ausgleichung</em>
    mit festen Altpunkten oder <em>5. Freie Netzausgleichung</em>), Genauigkeiten der Messungen.</li>
 <li><strong>Ausgleichen</strong> – Knopf ▶ <em>Ausgleichen</em> oder Taste <strong>F5</strong>.</li>
-<li><strong>Ergebnis beurteilen und ausgeben</strong>
-   * <em>s0</em> sollte nahe 1 liegen, der <em>Globaltest</em> bestanden sein.
-   * Rot markierte Beobachtungen sind <em>Ausreißer</em> (normierte Verbesserung &gt; 3,29).
-   * Ausgabe: <em>Protokoll RTF</em> (A4 quer), Netzbild als <em>PDF</em> / <em>DXF</em>, <em>Neupunkte</em> als <code>*.KON</code>.</li>
+<li><strong>Ergebnis beurteilen und ausgeben</strong><ul>
+<li><em>s0</em> sollte nahe 1 liegen, der <em>Globaltest</em> bestanden sein.</li>
+<li>Rot markierte Beobachtungen sind <em>Ausreißer</em> (normierte Verbesserung &gt; 3,29).</li>
+<li>Ausgabe: <em>Protokoll RTF</em> (A4 quer), Netzbild als <em>PDF</em> / <em>DXF</em>, <em>Neupunkte</em> als <code>*.KON</code>.</li>
+</ul>
+</li>
 </ol>
 <p>Projekt am Ende mit <em>Datei ▸ Projekt speichern</em> als <code>*.ausgl</code> sichern – darin stehen die Einstellungen und der
 Verweis auf die Datendateien.</p>
