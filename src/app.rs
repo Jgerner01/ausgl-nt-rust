@@ -92,6 +92,7 @@ pub struct AusglApp {
     dlg_trans: bool,
     dlg_help: bool,
     dlg_about: bool,
+    updater: crate::update::Updater,
     pdf_opts: PlotOptions,
     pdf_auto: bool,
     open_after: bool,
@@ -233,6 +234,7 @@ impl AusglApp {
             dlg_trans: false,
             dlg_help: false,
             dlg_about: false,
+            updater: crate::update::Updater::default(),
             pdf_opts: PlotOptions::default(),
             pdf_auto: true,
             open_after: true,
@@ -249,6 +251,9 @@ impl AusglApp {
             shot_requested: false,
             shot: Arc::new(Mutex::new(None)),
         };
+        if screenshot.is_none() {
+            app.updater.search_quietly(&cc.egui_ctx);
+        }
         if screenshot.is_some() {
             app.load_sample();
             app.proj.kind = NetKind::Raum3D;
@@ -804,6 +809,7 @@ impl AusglApp {
                     self.dlg_help = true;
                     ui.close();
                 }
+                self.updater.menu_entry(ui);
                 if ui.button("Über AUSGL-NT").clicked() {
                     self.dlg_about = true;
                     ui.close();
@@ -1861,13 +1867,14 @@ impl AusglApp {
         if self.dlg_about {
             let mut open = true;
             egui::Window::new("Über AUSGL-NT").open(&mut open).collapsible(false).resizable(false).show(ctx, |ui| {
-                ui.label(RichText::new("AUSGL-NT 1.0").size(18.0).strong());
+                ui.label(RichText::new(format!("{} {}", crate::version::PROGRAMM, crate::version::FULL)).size(18.0).strong());
                 ui.label("Geodätische Netzausgleichung nach vermittelnden Beobachtungen");
                 ui.label("Lagenetz · Höhennetz · 2D+Höhe · 3D · Vorwärtsschnitte · Satzmittel · Transformation");
                 ui.label(RichText::new("Nachfolger von WAUSGL / AUSGL (Delphi, 1996–1998)").color(MUTED));
             });
             self.dlg_about &= open;
         }
+        self.updater.show(ctx);
     }
 
     fn satz_dialog(&mut self, ctx: &egui::Context, dir: &str) {

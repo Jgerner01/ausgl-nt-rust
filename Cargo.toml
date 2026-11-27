@@ -1,7 +1,8 @@
 [package]
 name = "ausgl-nt"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2021"
+build = "build.rs"
 description = "Geodätische Netzausgleichung (Lage, Höhe, 2D+H, 3D, Vorwärtsschnitte) – Nachfolger von WAUSGL"
 
 [[bin]]
@@ -16,6 +17,13 @@ serde_json = "1"
 rfd = "0.17"
 image = { version = "0.25", default-features = false, features = ["png"] }
 miniz_oxide = "0.9"
+anyhow = "1"
+sha2 = "0.11"
+ureq = "3"
+zip = { version = "9", default-features = false, features = ["deflate"] }
+
+[target.'cfg(windows)'.build-dependencies]
+winresource = "0.1"
 
 [profile.release]
 opt-level = 3

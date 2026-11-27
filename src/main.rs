@@ -14,6 +14,8 @@ mod rtf;
 mod sample;
 mod scene;
 mod tools;
+mod update;
+mod version;
 
 use std::path::PathBuf;
 
